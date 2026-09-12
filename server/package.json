@@ -1,0 +1,46 @@
+{
+  "name": "@lantern-post/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "build": "nest build",
+    "smoke": "node scripts/smoke-api.mjs",
+    "test:burn-db": "node scripts/check-burn-database.mjs",
+    "test:friends-db": "node scripts/check-friends-database.mjs",
+    "test:private-letters-db": "node scripts/check-private-letters-database.mjs",
+    "db:local:up": "docker compose up -d --wait postgres",
+    "db:local:down": "docker compose down",
+    "lint": "eslint src test prisma.config.ts --max-warnings 0",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.prisma.json --noEmit",
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/test/*.test.js",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:status": "prisma migrate status",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@clerk/backend": "^2.0.0",
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@nestjs/swagger": "^11.2.0",
+    "@prisma/client": "6.19.3",
+    "@lantern-post/shared-types": "0.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^17.4.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.0",
+    "@types/node": "^24.0.0",
+    "prisma": "6.19.3"
+  }
+}

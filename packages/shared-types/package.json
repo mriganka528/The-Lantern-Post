@@ -1,0 +1,10 @@
+{
+  "name": "@lantern-post/shared-types",
+  "version": "0.0.0",
+  "private": true,
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc --noEmit"
+  }
+}

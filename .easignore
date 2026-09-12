@@ -1,0 +1,29 @@
+# Build from the workspace root so npm workspaces and shared types are present.
+node_modules/
+.git/
+.cache/
+.expo/
+dist/
+dist-test/
+coverage/
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+client/android/
+client/ios/
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+*firebase-adminsdk*.json
+*service-account*.json
+.DS_Store
+Thumbs.db
+.idea/
+
+# Firebase's Android app configuration is designed to ship in the app.
+# FCM service-account private keys belong in EAS credentials, never this file.
+!client/google-services.json

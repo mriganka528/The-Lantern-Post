@@ -1,0 +1,247 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LetterType {
+  TEXT
+  VOICE
+}
+
+enum LetterDestinationType {
+  INFINITY
+  FRIEND
+  BURNING
+}
+
+enum LetterStatus {
+  DRAFT
+  SENDING
+  DELIVERED
+  SOFT_DELETED   // burned messages after animation, or reported+removed
+  HARD_DELETED   // retained only as an audit stub, content purged
+}
+
+enum BurnOutcome {
+  BURNED
+  REJECTED
+}
+
+enum DeliveryOutcome {
+  DELIVERED
+  REJECTED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  BLOCKED
+}
+
+enum ReportReason {
+  HARASSMENT
+  SPAM
+  HATE_SPEECH
+  SELF_HARM_CONCERN
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  authProviderId String  @unique   // id from Supabase Auth / Clerk / etc.
+  characterId   String?
+  character     Character? @relation(fields: [characterId], references: [id])
+  palaceTheme   String?    // simple config key for MVP; expand to a Palace model post-MVP
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sentLetters       Letter[]           @relation("SentLetters")
+  receivedLetters   Letter[]           @relation("ReceivedLetters")
+  friendRequestsSent     FriendRequest[] @relation("RequestsSent")
+  friendRequestsReceived FriendRequest[] @relation("RequestsReceived")
+  reportsFiled      Report[]           @relation("ReportsFiled")
+  reportsAgainst    Report[]           @relation("ReportsAgainst")
+  blockedUsers      Block[]            @relation("Blocker")
+  blockedByUsers    Block[]            @relation("Blocked")
+  pushTokens        PushToken[]
+  burnReceipts      BurnReceipt[]
+  friendNotifications FriendNotification[]
+  deliveryReceipts DeliveryReceipt[]
+
+  @@index([username])
+}
+
+model Character {
+  id          String  @id @default(cuid())
+  key         String  @unique   // e.g. "fox-lantern", "owl-scholar"
+  displayName String
+  assetUrl    String            // CDN URL to sprite/animation bundle
+  isActive    Boolean @default(true)  // curated set can be toggled without deleting history
+  users       User[]
+}
+
+model Preset {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  displayName String
+  configJson  Json     // paper texture, seal color, border, font — data-driven
+  isSeasonal  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  letters     Letter[]
+}
+
+// Only an operation outcome is kept here; never letter text or a text digest.
+// A durable rejection prevents a delayed duplicate from burning a letter that
+// the app was already told it could edit again.
+model BurnReceipt {
+  id          String @id
+  ownerId     String
+  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  outcome     BurnOutcome
+  reason      String?
+  letterId    String? @unique
+  createdAt   DateTime @default(now())
+
+  @@index([ownerId])
+}
+
+model DeliveryReceipt {
+  id          String @id
+  ownerId     String
+  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipientId String
+  outcome     DeliveryOutcome
+  reason      String?
+  letterId    String? @unique
+  createdAt   DateTime @default(now())
+
+  @@index([ownerId])
+}
+
+model Letter {
+  id              String   @id @default(cuid())
+  senderId        String
+  sender          User     @relation("SentLetters", fields: [senderId], references: [id])
+  recipientId     String?           // only set for FRIEND destination
+  recipient       User?    @relation("ReceivedLetters", fields: [recipientId], references: [id])
+
+  type            LetterType
+  destinationType LetterDestinationType
+  textContent     String?           // for TEXT type
+  audioUrl        String?           // for VOICE type, CDN/signed URL reference
+  audioDurationMs Int?
+
+  presetId        String?
+  preset          Preset?  @relation(fields: [presetId], references: [id])
+
+  isSigned        Boolean  @default(false)   // "Sign it" — reveal sender username publicly
+  posX            Float?             // Infinity World coordinate
+  posY            Float?             // Infinity World coordinate
+
+  status          LetterStatus @default(SENDING)
+  moderationPassed Boolean?          // null = pending, true/false = result
+  moderationCheckedAt DateTime?
+  stationeryJson  Json?              // snapshot of the validated stationery at delivery
+  readAt          DateTime?          // first opening by the recipient
+
+  createdAt       DateTime @default(now())
+  deliveredAt     DateTime?
+  softDeletedAt   DateTime?
+  hardDeleteAfter DateTime?          // scheduled purge time for BURNING/removed content
+
+  reports         Report[]
+  notifications   FriendNotification[]
+
+  @@index([destinationType, posX, posY])   // Infinity World bounding-box queries
+  @@index([recipientId, status])           // friend gate inbox queries
+  @@index([hardDeleteAfter])               // sweep job
+  @@index([senderId, destinationType, status, deliveredAt])
+}
+
+model FriendRequest {
+  id          String   @id @default(cuid())
+  fromUserId  String
+  fromUser    User     @relation("RequestsSent", fields: [fromUserId], references: [id])
+  toUserId    String
+  toUser      User     @relation("RequestsReceived", fields: [toUserId], references: [id])
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  respondedAt DateTime?
+  notifications FriendNotification[]
+
+  @@unique([fromUserId, toUserId])
+  // SQL also enforces one row per unordered pair, and disallows self-requests.
+  @@index([toUserId, status, createdAt])
+  @@index([fromUserId, status, createdAt])
+}
+
+// A durable, content-free outbox. A friendship can succeed while push is down.
+model FriendNotification {
+  id          String @id
+  userId      String
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestId   String?
+  request     FriendRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  letterId    String?
+  letter      Letter? @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  kind        String // FRIEND_REQUEST | FRIEND_ACCEPTED | LETTER_DELIVERED; checked in SQL
+  createdAt   DateTime @default(now())
+  availableAt DateTime @default(now())
+  claimedUntil DateTime?
+  attempts    Int @default(0)
+  completedAt DateTime?
+
+  @@index([completedAt, availableAt])
+}
+
+model Block {
+  id          String   @id @default(cuid())
+  blockerId   String
+  blocker     User     @relation("Blocker", fields: [blockerId], references: [id])
+  blockedId   String
+  blocked     User     @relation("Blocked", fields: [blockedId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  letterId    String
+  letter      Letter   @relation(fields: [letterId], references: [id])
+  reporterId  String
+  reporter    User     @relation("ReportsFiled", fields: [reporterId], references: [id])
+  reportedUserId String
+  reportedUser   User  @relation("ReportsAgainst", fields: [reportedUserId], references: [id])
+  reason      ReportReason
+  detail      String?
+  status      ReportStatus @default(OPEN)
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  platform  String   // "ios" | "android"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

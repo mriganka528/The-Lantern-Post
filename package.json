@@ -1,0 +1,39 @@
+{
+  "name": "lantern-post",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": ["client", "server", "packages/*"],
+  "engines": { "node": ">=24.3.0 <25", "npm": ">=10" },
+  "scripts": {
+    "setup:push": "node scripts/setup-native-push.mjs",
+    "start": "npm run start --workspace @lantern-post/mobile --",
+    "setup:env": "node scripts/setup-env.mjs",
+    "dev:mobile": "npm run start --workspace @lantern-post/mobile --",
+    "dev:web": "npm run web --workspace @lantern-post/mobile --",
+    "dev:server": "npm run start:dev --workspace @lantern-post/api --",
+    "dev:api": "npm run start:dev --workspace @lantern-post/api --",
+    "start:api": "npm run start --workspace @lantern-post/api",
+    "db:local:up": "npm run db:local:up --workspace @lantern-post/api",
+    "db:local:down": "npm run db:local:down --workspace @lantern-post/api",
+    "db:generate": "npm run prisma:generate --workspace @lantern-post/api",
+    "db:validate": "npm run prisma:validate --workspace @lantern-post/api",
+    "db:migrate": "npm run prisma:migrate --workspace @lantern-post/api --",
+    "db:deploy": "npm run prisma:deploy --workspace @lantern-post/api",
+    "db:status": "npm run prisma:status --workspace @lantern-post/api",
+    "db:studio": "npm run prisma:studio --workspace @lantern-post/api",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build:api": "npm run build --workspace @lantern-post/api",
+    "smoke:api": "npm run smoke --workspace @lantern-post/api",
+    "export:mobile": "npm run export --workspace @lantern-post/mobile --",
+    "export:web": "npm run export --workspace @lantern-post/mobile -- --platform web"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.59.0"
+  }
+}

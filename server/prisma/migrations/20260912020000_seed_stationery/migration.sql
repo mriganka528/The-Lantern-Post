@@ -1,0 +1,10 @@
+-- Phase 3 curated stationery. Preserve existing IDs and operator activation settings.
+INSERT INTO "Preset" ("id", "key", "displayName", "configJson", "isSeasonal", "isActive") VALUES
+  ('preset_lantern', 'lantern-parchment', 'Lantern parchment', '{"version":1,"order":0,"description":"Warm paper, a sage ribbon, and a little light.","paperColor":"#F8EED6","inkColor":"#443C2F","sealColor":"#946347","ribbonColor":"#849079","texture":"parchment","motif":"postmark","font":"book"}'::jsonb, false, true),
+  ('preset_moonflower', 'moonflower', 'Moonflower', '{"version":1,"order":1,"description":"Silver lilac for the words you whisper to the moon.","paperColor":"#F0EDF6","inkColor":"#51465E","sealColor":"#817096","ribbonColor":"#B1A7C3","texture":"vellum","motif":"stars","font":"book"}'::jsonb, false, true),
+  ('preset_rose', 'rose-and-ribbon', 'Rose & ribbon', '{"version":1,"order":2,"description":"Blush linen and a rose seal for a tender thought.","paperColor":"#FAEAE3","inkColor":"#674B4B","sealColor":"#A45E68","ribbonColor":"#C49692","texture":"linen","motif":"floral","font":"script"}'::jsonb, false, true),
+  ('preset_celestial', 'celestial-vellum', 'Celestial vellum', '{"version":1,"order":3,"description":"A constellation of gold on a quiet blue sky.","paperColor":"#E8F0F3","inkColor":"#3F5362","sealColor":"#5C788B","ribbonColor":"#B8A477","texture":"vellum","motif":"stars","font":"classic"}'::jsonb, false, true),
+  ('preset_meadow', 'meadow-linen', 'Meadow linen', '{"version":1,"order":4,"description":"Soft green leaves and the stillness of a garden.","paperColor":"#EEF0DF","inkColor":"#465140","sealColor":"#657D60","ribbonColor":"#B4BD93","texture":"linen","motif":"floral","font":"book"}'::jsonb, false, true),
+  ('preset_royal', 'royal-ivory', 'Royal ivory', '{"version":1,"order":5,"description":"An heirloom border, ivory paper, and a burgundy seal.","paperColor":"#FBF3DE","inkColor":"#55432F","sealColor":"#87434D","ribbonColor":"#B49A65","texture":"parchment","motif":"royal","font":"classic"}'::jsonb, false, true)
+ON CONFLICT ("key") DO UPDATE SET
+  "displayName" = EXCLUDED."displayName", "configJson" = EXCLUDED."configJson";

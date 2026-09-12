@@ -1,0 +1,62 @@
+name: Lantern Post checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: lantern-post
+          POSTGRES_PASSWORD: lantern-post_ci
+          POSTGRES_DB: lantern-post_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U lantern-post -d lantern-post_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      EXPO_PUBLIC_API_URL: https://api.example.invalid
+      EXPO_PUBLIC_WEB_API_URL: https://api.example.invalid
+      # A well-formed dummy publishable key is sufficient for Metro exports.
+      # No Clerk instance or verification email is used by CI.
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_dGVzdC5jbGVyay5hY2NvdW50cy5kZXYk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:validate
+      - run: npm run db:deploy
+      - run: npm run db:status
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:api
+      - run: npm run test:burn-db --workspace @lantern-post/api
+        env:
+          BURN_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:friends-db --workspace @lantern-post/api
+        env:
+          FRIENDS_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:private-letters-db --workspace @lantern-post/api
+        env:
+          PRIVATE_LETTERS_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run smoke:api
+      - run: npm run export:mobile -- --platform android --output-dir dist/android
+      - run: npm run export:mobile -- --platform ios --output-dir dist/ios
+      - run: npm run export:web -- --output-dir dist/web

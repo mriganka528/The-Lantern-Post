@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "outDir": "dist-test",
+    "rootDir": "."
+  },
+  "include": ["test/**/*.ts", "src/api/client.ts", "src/config/env.ts", "src/auth/clerk-errors.ts", "src/auth/session-token.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist", "dist-test"]
+}

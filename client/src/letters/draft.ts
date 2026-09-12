@@ -1,0 +1,247 @@
+import type { BurnLetterRequest, BurnReceipt, DeliveryReceipt, FriendLetterRequest, LetterPreset, LetterRecipient, StationeryConfig } from '@lantern-post/shared-types';
+import { readBurnReceipt, requestIdPattern } from './burn-contract';
+import { cleanRecipient, deliveryRejectionMessage, readDeliveryReceipt } from './delivery-contract';
+
+export const LETTER_LIMIT = 2000;
+export const characterCount = (text: string) => Array.from(text).length;
+export function letterProblem(text: string): string | null {
+  if (!text.trim()) return 'Give your letter a few words before sealing it.';
+  const extra = characterCount(text) - LETTER_LIMIT;
+  return extra > 0 ? `Your letter is ${extra} character${extra === 1 ? '' : 's'} over the limit.` : null;
+}
+
+export interface LetterDraft {
+  version: 3;
+  generationId: string;
+  ownerId: string;
+  text: string;
+  preset: LetterPreset | null;
+  stage: 'writing' | 'sealed' | 'burn-pending' | 'burned' | 'delivery-pending' | 'delivered';
+  updatedAt: string;
+  sealedAt: string | null;
+  burnRequestId: string | null;
+  burnReceipt: BurnReceipt | null;
+  deliveryRequestId: string | null;
+  deliveryRecipient: LetterRecipient | null;
+  deliveryReceipt: DeliveryReceipt | null;
+}
+
+export function cleanPreset(input: unknown): LetterPreset | null {
+  if (!input || typeof input !== 'object') return null;
+  const p = input as Record<string, unknown>;
+  if (!['id', 'key', 'displayName', 'description'].every(key => typeof p[key] === 'string' && (p[key] as string).length <= 200)) return null;
+  if (!p.config || typeof p.config !== 'object') return null;
+  const c = p.config as Record<string, unknown>;
+  if (!['paperColor', 'inkColor', 'sealColor', 'ribbonColor'].every(key => typeof c[key] === 'string' && /^#[\da-f]{6}$/i.test(c[key])) ||
+    typeof c.texture !== 'string' || !['parchment', 'linen', 'vellum'].includes(c.texture) ||
+    typeof c.motif !== 'string' || !['stars', 'floral', 'royal', 'postmark'].includes(c.motif) ||
+    typeof c.font !== 'string' || !['book', 'script', 'classic'].includes(c.font)) return null;
+  return {
+    id: p.id as string, key: p.key as string, displayName: p.displayName as string, description: p.description as string,
+    config: {
+      paperColor: c.paperColor as string, inkColor: c.inkColor as string, sealColor: c.sealColor as string, ribbonColor: c.ribbonColor as string,
+      texture: c.texture as StationeryConfig['texture'], motif: c.motif as StationeryConfig['motif'], font: c.font as StationeryConfig['font'],
+    },
+  };
+}
+
+// Generation IDs distinguish local pages, not authenticated operations. The
+// app supplies Expo Crypto's UUID factory; the fallback also supports Node tests.
+function localGenerationId() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`; }
+
+export function newDraft(ownerId: string, generationId = localGenerationId()): LetterDraft {
+  return { version: 3, generationId, ownerId, text: '', preset: null, stage: 'writing', updatedAt: new Date().toISOString(), sealedAt: null, burnRequestId: null, burnReceipt: null, deliveryRequestId: null, deliveryRecipient: null, deliveryReceipt: null };
+}
+
+export function decodeDraft(raw: string | null, ownerId: string): LetterDraft {
+  if (raw === null) return newDraft(ownerId);
+  if (raw.length > 100_000) throw new Error('Draft could not be restored.');
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== 'object') throw new Error('Draft could not be restored.');
+  const d = value as Record<string, unknown>;
+  const preset = d.preset === null ? null : cleanPreset(d.preset);
+  const requestId = typeof d.burnRequestId === 'string' ? d.burnRequestId.toLowerCase() : null;
+  const receipt = requestId ? readBurnReceipt(d.burnReceipt, requestId) : null;
+  const deliveryRequestId = typeof d.deliveryRequestId === 'string' ? d.deliveryRequestId.toLowerCase() : null;
+  const deliveryRecipient = cleanRecipient(d.deliveryRecipient);
+  const deliveryReceipt = deliveryRequestId && deliveryRecipient ? readDeliveryReceipt(d.deliveryReceipt, deliveryRequestId, deliveryRecipient.id) : null;
+  const delivering = d.stage === 'delivery-pending' || d.stage === 'delivered';
+  if (![1, 2, 3].includes(d.version as number) || d.ownerId !== ownerId || typeof d.text !== 'string' || d.text.length > 20_000 ||
+    typeof d.stage !== 'string' || !['writing', 'sealed', 'burn-pending', 'burned', 'delivery-pending', 'delivered'].includes(d.stage) || (d.preset !== null && !preset) ||
+    typeof d.updatedAt !== 'string' || !Number.isFinite(Date.parse(d.updatedAt)) ||
+    (d.version === 1 && d.stage !== 'writing' && d.stage !== 'sealed') ||
+    (d.version !== 1 && (typeof d.generationId !== 'string' || !d.generationId || d.generationId.length > 200)) ||
+    ((d.stage === 'sealed' || d.stage === 'burn-pending' || d.stage === 'delivery-pending') && (!preset || letterProblem(d.text) !== null || typeof d.sealedAt !== 'string' || !Number.isFinite(Date.parse(d.sealedAt)))) ||
+    ((d.stage === 'burn-pending' || d.stage === 'burned') && (!requestId || !requestIdPattern.test(requestId))) ||
+    (d.stage === 'burned' && (!receipt || receipt.outcome !== 'BURNED')) ||
+    (delivering && (d.version !== 3 || !deliveryRecipient || !deliveryRequestId || !requestIdPattern.test(deliveryRequestId))) ||
+    (d.stage === 'delivered' && (!deliveryReceipt || deliveryReceipt.outcome !== 'DELIVERED'))) {
+    throw new Error('Draft could not be restored.');
+  }
+  return {
+    version: 3, generationId: d.version === 1 ? `legacy:${ownerId}:${d.updatedAt}` : d.generationId as string,
+    ownerId, text: d.stage === 'burned' || d.stage === 'delivered' ? '' : d.text, preset, stage: d.stage as LetterDraft['stage'], updatedAt: d.updatedAt,
+    sealedAt: d.stage === 'sealed' || d.stage === 'burn-pending' || d.stage === 'delivery-pending' ? d.sealedAt as string : null,
+    burnRequestId: d.stage === 'burn-pending' || d.stage === 'burned' ? requestId : null,
+    burnReceipt: d.stage === 'burned' ? receipt : null,
+    deliveryRequestId: delivering ? deliveryRequestId : null,
+    deliveryRecipient: delivering ? deliveryRecipient : null,
+    deliveryReceipt: d.stage === 'delivered' ? deliveryReceipt : null,
+  };
+}
+
+export interface DraftStorage {
+  read(key: string): string | null;
+  write(key: string, value: string): void;
+  subscribe?(key: string, listener: () => void): () => void;
+}
+export interface DraftSnapshot {
+  phase: 'loading' | 'ready' | 'load-error';
+  draft: LetterDraft | null;
+  save: 'saved' | 'error';
+  notice?: string;
+}
+
+// Small synchronous local writes preserve ordering and finish before navigation.
+// There are no background requests that can write another account's draft.
+export class DraftController {
+  private snapshot: DraftSnapshot = { phase: 'loading', draft: null, save: 'saved' };
+  private listeners = new Set<() => void>();
+  private lastStored: string | null = null;
+  readonly key: string;
+
+  constructor(private readonly ownerId: string, private readonly storage: DraftStorage, private readonly makeId = localGenerationId) {
+    if (!ownerId) throw new Error('A draft owner is required.');
+    this.key = `lantern-draft-v1-${encodeURIComponent(ownerId)}`;
+  }
+  getSnapshot = () => this.snapshot;
+  subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
+  private publish(snapshot: DraftSnapshot) { this.snapshot = snapshot; this.listeners.forEach(listener => listener()); }
+  load() {
+    try {
+      this.lastStored = this.storage.read(this.key);
+      const draft = this.lastStored === null ? newDraft(this.ownerId, this.makeId()) : decodeDraft(this.lastStored, this.ownerId);
+      this.publish({ phase: 'ready', draft, save: 'saved' });
+    }
+    catch { this.publish({ phase: 'load-error', draft: null, save: 'saved' }); }
+  }
+  refresh() {
+    try { if (this.storage.read(this.key) !== this.lastStored) this.load(); }
+    catch { this.publish({ ...this.snapshot, save: 'error' }); }
+  }
+  watchStorage() { return this.storage.subscribe?.(this.key, () => this.refresh()) ?? (() => {}); }
+  private commit(draft: LetterDraft, requireSaved = false): boolean {
+    try {
+      // An old editor/tab must not resurrect a burned or replaced page.
+      const current = this.storage.read(this.key);
+      if (current !== this.lastStored) {
+        this.load();
+        this.publish({ ...this.snapshot, notice: 'This letter changed in another window. The saved version is shown here.' });
+        return false;
+      }
+      const serialized = JSON.stringify(draft);
+      this.storage.write(this.key, serialized);
+      this.lastStored = serialized;
+      this.publish({ phase: 'ready', draft, save: 'saved' });
+      return true;
+    } catch {
+      this.publish({ ...this.snapshot, draft: requireSaved ? this.snapshot.draft : draft, save: 'error' });
+      return false;
+    }
+  }
+  edit(text: string) {
+    const d = this.snapshot.draft;
+    if (!d || d.stage !== 'writing' || text.length > 20_000) return;
+    this.commit({ ...d, text, updatedAt: new Date().toISOString() });
+  }
+  choosePreset(preset: LetterPreset) {
+    const d = this.snapshot.draft;
+    const clean = cleanPreset(preset);
+    if (!d || d.stage !== 'writing' || !clean) return;
+    this.commit({ ...d, preset: clean, updatedAt: new Date().toISOString() });
+  }
+  seal(): boolean {
+    const d = this.snapshot.draft;
+    if (!d || d.stage !== 'writing' || !d.preset || letterProblem(d.text)) return false;
+    const timestamp = new Date().toISOString();
+    return this.commit({ ...d, stage: 'sealed', sealedAt: timestamp, updatedAt: timestamp }, true);
+  }
+  unseal() {
+    const d = this.snapshot.draft;
+    if (d?.stage === 'sealed') this.commit({ ...d, stage: 'writing', sealedAt: null, updatedAt: new Date().toISOString() });
+  }
+  retrySave(): boolean { return this.snapshot.draft ? this.commit(this.snapshot.draft) : false; }
+  reset(): boolean {
+    const stage = this.snapshot.draft?.stage;
+    if (stage === 'burn-pending' || stage === 'delivery-pending' || ((stage === 'burned' || stage === 'delivered') && this.snapshot.save === 'error')) return false;
+    return this.commit(newDraft(this.ownerId, this.makeId()), true);
+  }
+  beginBurn(requestId: string): boolean {
+    const d = this.snapshot.draft;
+    if (!d || d.stage !== 'sealed' || !d.preset || this.snapshot.save !== 'saved' || letterProblem(d.text) || !requestIdPattern.test(requestId)) return false;
+    return this.commit({ ...d, stage: 'burn-pending', burnRequestId: requestId.toLowerCase(), burnReceipt: null, updatedAt: new Date().toISOString() }, true);
+  }
+  pendingBurn(): BurnLetterRequest | null {
+    const d = this.snapshot.draft;
+    if (!d || d.stage !== 'burn-pending' || !d.preset || !d.burnRequestId) return null;
+    return { requestId: d.burnRequestId, type: 'TEXT', destinationType: 'BURNING', textContent: d.text, presetId: d.preset.id, burnConfirmed: true };
+  }
+  beginDelivery(requestId: string, recipient: LetterRecipient): boolean {
+    const d = this.snapshot.draft; const target = cleanRecipient(recipient);
+    if (!d || d.stage !== 'sealed' || !d.preset || this.snapshot.save !== 'saved' || letterProblem(d.text) || !target || target.id === this.ownerId || !requestIdPattern.test(requestId)) return false;
+    return this.commit({ ...d, stage: 'delivery-pending', deliveryRequestId: requestId.toLowerCase(), deliveryRecipient: target, deliveryReceipt: null, updatedAt: new Date().toISOString() }, true);
+  }
+  pendingDelivery(): FriendLetterRequest | null {
+    const d = this.snapshot.draft;
+    if (!d || d.stage !== 'delivery-pending' || !d.preset || !d.deliveryRequestId || !d.deliveryRecipient) return null;
+    return { requestId: d.deliveryRequestId, type: 'TEXT', destinationType: 'FRIEND', textContent: d.text, presetId: d.preset.id, recipientId: d.deliveryRecipient.id, deliveryConfirmed: true };
+  }
+  applyDeliveryReceipt(value: unknown): boolean {
+    const before = this.snapshot.draft;
+    if (!before || before.stage !== 'delivery-pending' || !before.deliveryRequestId || !before.deliveryRecipient) return false;
+    const receipt = readDeliveryReceipt(value, before.deliveryRequestId, before.deliveryRecipient.id);
+    if (!receipt) return false;
+    if (receipt.outcome === 'REJECTED') {
+      const restored = this.commit({ ...before, stage: 'sealed', deliveryRequestId: null, deliveryRecipient: null, deliveryReceipt: null, updatedAt: new Date().toISOString() }, true);
+      if (restored) this.publish({ ...this.snapshot, notice: deliveryRejectionMessage(receipt.reason) });
+      return restored;
+    }
+    const cleared: LetterDraft = { ...before, stage: 'delivered', text: '', sealedAt: null, deliveryReceipt: receipt, updatedAt: receipt.completedAt };
+    try {
+      const current = this.storage.read(this.key);
+      if (current !== null && decodeDraft(current, this.ownerId).generationId !== before.generationId) { this.load(); return true; }
+      const serialized = JSON.stringify(cleared); this.storage.write(this.key, serialized); this.lastStored = serialized;
+      this.publish({ phase: 'ready', draft: cleared, save: 'saved' }); return true;
+    } catch { this.publish({ phase: 'ready', draft: cleared, save: 'error' }); return false; }
+  }
+  applyBurnReceipt(value: unknown): boolean {
+    const before = this.snapshot.draft;
+    if (!before || before.stage !== 'burn-pending' || !before.burnRequestId) return false;
+    const receipt = readBurnReceipt(value, before.burnRequestId);
+    if (!receipt) return false;
+    if (receipt.outcome === 'REJECTED') {
+      const restored = this.commit({ ...before, stage: 'sealed', burnRequestId: null, burnReceipt: null, updatedAt: new Date().toISOString() }, true);
+      if (restored) this.publish({ ...this.snapshot, notice: 'That stationery is no longer available. Your letter has been kept; choose another style before releasing it.' });
+      return restored;
+    }
+    const cleared: LetterDraft = { ...before, stage: 'burned', text: '', sealedAt: null, burnReceipt: receipt, updatedAt: receipt.completedAt };
+    try {
+      const current = this.storage.read(this.key);
+      if (current !== null && decodeDraft(current, this.ownerId).generationId !== before.generationId) {
+        // A delayed response for an older page cannot erase a newer page.
+        this.load();
+        return true;
+      }
+      const serialized = JSON.stringify(cleared);
+      this.storage.write(this.key, serialized);
+      this.lastStored = serialized;
+      this.publish({ phase: 'ready', draft: cleared, save: 'saved' });
+      return true;
+    } catch {
+      // The persisted pending state is a fence: on restart it can only check
+      // or retry the receipt, never reopen the text. Memory is cleared now.
+      this.publish({ phase: 'ready', draft: cleared, save: 'error' });
+      return false;
+    }
+  }
+}

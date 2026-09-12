@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Lantern Post",
+    "slug": "lantern-post",
+    "version": "0.1.0",
+    "scheme": "lantern-post",
+    "android": {
+      "package": "com.lanternpost.app",
+      "googleServicesFile": "./google-services.json"
+    },
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#C4A777"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
