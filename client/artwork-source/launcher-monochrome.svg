@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- A small-size, single-colour interpretation of the supplied lantern and sealed letter.
+       Android supplies the colour; all openings are transparent, never painted black. -->
+  <defs>
+    <mask id="letter-clearance">
+      <rect width="1024" height="1024" fill="white"/>
+      <rect x="420" y="560" width="358" height="252" rx="24" fill="black" transform="rotate(7 599 686)"/>
+    </mask>
+  </defs>
+  <g transform="translate(80 90) scale(.8)">
+  <g fill="none" stroke="white" stroke-width="25" stroke-linecap="round" stroke-linejoin="round" mask="url(#letter-clearance)">
+    <ellipse cx="465" cy="279" rx="37" ry="53" transform="rotate(12 465 279)"/>
+    <path d="M410 353Q465 315 520 353L512 379H419Z" fill="white" stroke-width="12"/>
+    <path d="M419 391 337 477H592L512 391M324 489H605M346 512V739H581V512M333 754H594"/>
+    <path d="M463 507V733" stroke-width="15"/>
+    <path d="M418 591C398 621 377 640 391 667C402 689 434 679 436 655C438 636 423 628 426 610L415 625C409 614 417 604 418 591Z" fill="white" stroke="none"/>
+  </g>
+  <g transform="rotate(7 599 686)" fill="none" stroke="white" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="444" y="584" width="310" height="204" rx="14"/>
+    <path d="M454 599 574 683M744 599 625 683M457 773 539 704M741 773 660 704" stroke-width="18"/>
+    <circle cx="599" cy="699" r="33" fill="white" stroke="none"/>
+  </g>
+  <path d="M612 313 620 337 644 345 620 353 612 377 604 353 580 345 604 337Z" fill="white"/>
+  </g>
+</svg>

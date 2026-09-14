@@ -4,7 +4,7 @@
     "slug": "lantern-post",
     "version": "0.1.0",
     "scheme": "lantern-post",
-    "icon": "./assets/storybook/app-icon.png",
+    "icon": "./assets/app-icon/icon.png",
     "splash": {
       "image": "./assets/storybook/app-foreground.png",
       "resizeMode": "contain",
@@ -23,9 +23,10 @@
         "android.permission.READ_MEDIA_AUDIO"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/storybook/app-foreground.png",
-        "monochromeImage": "./assets/storybook/app-monochrome.png",
-        "backgroundColor": "#F8F2E2"
+        "foregroundImage": "./assets/app-icon/adaptive-foreground.png",
+        "backgroundImage": "./assets/app-icon/adaptive-background.png",
+        "monochromeImage": "./assets/app-icon/monochrome.png",
+        "backgroundColor": "#171829"
       }
     },
     "ios": {
@@ -40,7 +41,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/storybook/app-icon.png"
+      "favicon": "./assets/app-icon/favicon.png"
     },
     "orientation": "portrait",
     "plugins": [
@@ -57,6 +58,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/app-icon/notification.png",
           "color": "#C4A777"
         }
       ],
