@@ -1,7 +1,8 @@
 import { GoogleSignInError } from './google-flow';
+import { NativeGoogleError } from './native-google-state';
 
 export function clerkErrorMessage(error: unknown): string {
-  if (error instanceof GoogleSignInError) return error.message;
+  if (error instanceof GoogleSignInError || error instanceof NativeGoogleError) return error.message;
   let code: unknown;
   if (error && typeof error === 'object' && 'errors' in error && Array.isArray(error.errors)) {
     const first: unknown = error.errors[0];

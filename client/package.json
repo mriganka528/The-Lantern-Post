@@ -17,8 +17,10 @@
   },
   "dependencies": {
     "@clerk/expo": "^4.6.6",
+    "@clerk/expo-google-signin": "1.0.4",
     "@expo/metro-runtime": "~57.0.15",
     "@lantern-post/shared-types": "0.0.0",
+    "@react-native-google-signin/google-signin": "16.1.5",
     "@tanstack/react-query": "^5.0.0",
     "expo": "~57.0.21",
     "expo-asset": "~57.0.17",

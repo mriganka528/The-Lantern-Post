@@ -22,9 +22,11 @@ module.exports = ({ config }) => {
   }
   const projectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || config.extra?.eas?.projectId;
   if (projectId && !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(projectId)) throw new Error('The Expo project ID must be a UUID.');
+  const googleWebClientId = process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID || config.extra?.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID;
+  if (googleWebClientId && (typeof googleWebClientId !== 'string' || !/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(googleWebClientId))) throw new Error('The native Google Web client ID must be an OAuth client ID, never a client secret.');
   return {
     ...config,
     android,
-    extra: { ...config.extra, ...(projectId ? { eas: { ...config.extra?.eas, projectId } } : {}), mobile: { androidPushConfigured: hasFirebase && Boolean(projectId) } },
+    extra: { ...config.extra, ...(googleWebClientId ? { EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID: googleWebClientId } : {}), ...(projectId ? { eas: { ...config.extra?.eas, projectId } } : {}), mobile: { ...config.extra?.mobile, androidPushConfigured: hasFirebase && Boolean(projectId) } },
   };
 };

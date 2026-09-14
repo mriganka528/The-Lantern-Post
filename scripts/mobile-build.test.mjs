@@ -7,9 +7,11 @@ const require = createRequire(import.meta.url);
 const configure = require('../client/app.config.js');
 const base = () => JSON.parse(readFileSync(new URL('../client/app.json', import.meta.url), 'utf8')).expo;
 const savedFile = process.env.GOOGLE_SERVICES_JSON; const savedProject = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+const savedGoogleWebId = process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID;
 afterEach(() => {
   if (savedFile === undefined) delete process.env.GOOGLE_SERVICES_JSON; else process.env.GOOGLE_SERVICES_JSON = savedFile;
   if (savedProject === undefined) delete process.env.EXPO_PUBLIC_EAS_PROJECT_ID; else process.env.EXPO_PUBLIC_EAS_PROJECT_ID = savedProject;
+  if (savedGoogleWebId === undefined) delete process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID; else process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID = savedGoogleWebId;
 });
 const directory = resolve('.cache/mobile-config-tests'); mkdirSync(directory, { recursive: true });
 function file(name, value) { const path = resolve(directory, name); writeFileSync(path, JSON.stringify(value)); return path; }
@@ -35,4 +37,15 @@ test('wrong-package and private service-account files can never be embedded as A
 test('an explicitly configured missing file fails instead of silently disabling push', () => {
   process.env.GOOGLE_SERVICES_JSON = resolve(directory, 'missing.json');
   assert.throws(() => configure({ config: base() }), /existing Firebase/);
+});
+
+test('native Google config exposes a public Web client ID and rejects secret-like input', () => {
+  delete process.env.GOOGLE_SERVICES_JSON;
+  process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID = '123-fixture.apps.googleusercontent.com';
+  const result = configure({ config: base() });
+  assert.equal(result.extra.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID, process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID);
+  assert.ok(result.plugins.includes('@clerk/expo-google-signin'));
+  assert.ok(result.plugins.includes('@react-native-google-signin/google-signin'));
+  process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID = 'SYNTHETIC_CLIENT_SECRET';
+  assert.throws(() => configure({ config: base() }), error => /Web client ID/.test(error.message) && !error.message.includes('SYNTHETIC_CLIENT_SECRET'));
 });

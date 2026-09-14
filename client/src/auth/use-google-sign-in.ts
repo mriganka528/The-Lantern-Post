@@ -1,17 +1,1 @@
-import { useSSO } from '@clerk/expo';
-import { makeRedirectUri } from 'expo-auth-session';
-import { activateGoogleSession, requireGoogleAgeConfirmation } from './google-flow';
-import { useOnboardingDraft } from './onboarding-store';
-
-export function useGoogleSignIn() {
-  const { startSSOFlow } = useSSO();
-  return async (ageConfirmed: boolean): Promise<void> => {
-    requireGoogleAgeConfirmation(ageConfirmed);
-    const result = await startSSOFlow({
-      strategy: 'oauth_google',
-      redirectUrl: makeRedirectUri({ scheme: 'lantern-post', path: 'oauth-callback' }),
-    });
-    const draft = useOnboardingDraft.getState();
-    await activateGoogleSession(result, draft.confirmMinimumAgeForSession, draft.clearSessionConfirmation);
-  };
-}
+export { useGoogleBrowserSignIn as useGoogleSignIn } from './use-google-browser-sign-in';

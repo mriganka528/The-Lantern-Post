@@ -14,7 +14,9 @@ import { collectArchive } from './backup-api';
 import type { BackupManifest } from './backup-api';
 import type { BackupArchive,EncryptedBackup } from './backup-contract';
 import { decryptArchive,encryptArchive } from './backup-crypto';
-import { exportBackup,importBackup,prepareDriveWindow } from './backup-files';
+import { exportBackup,importBackup } from './backup-files';
+import { prepareDriveConnector } from './drive-connector';
+import { isNativeGooglePickerOpen,NativeGoogleError } from '../auth/native-google-state';
 import { assertAccountOpen } from '../account/account-fence';
 const panel={borderWidth:1,borderColor:'#B99A61',borderRadius:24,padding:24,gap:18,backgroundColor:'#F3E8CF'} as const;
 export function BackupRoom({ownerId,getToken}:{ownerId:string;getToken:GetSessionToken}) {
@@ -22,13 +24,36 @@ export function BackupRoom({ownerId,getToken}:{ownerId:string;getToken:GetSessio
   const [prepared,setPrepared]=useState<{envelope:EncryptedBackup;recoveryKey:string;target:'local'|'drive';source?:{key:string;revision:string|null}}|null>(null);const [unlock,setUnlock]=useState<EncryptedBackup|null>(null);const [key,setKey]=useState('');const [archive,setArchive]=useState<BackupArchive|null>(null);const [voiceArchive,setVoiceArchive]=useState<VoiceArchive|null>(null);const [shown,setShown]=useState(50);const [thread,setThread]=useState(0);const [remove,setRemove]=useState<{id:string;target:'local'|'drive'}|null>(null);const [disconnect,setDisconnect]=useState(false);
   const active=useRef(true);const operation=useRef<AbortController|null>(null);const locked=useRef(false);
   const refresh=useCallback(async(signal?:AbortSignal)=>{const files=await backupStore.list(ownerId);if(!active.current)return;setLocal(files);const saved=await apiRequest<typeof status>('/backups/drive',getToken,{signal});if(!active.current)return;setStatus(saved);if(saved.connected){const cloud=await apiRequest<{files:typeof drive}>('/backups/drive/files',getToken,{signal});if(active.current)setDrive(cloud.files);}else setDrive([]);},[ownerId,getToken]);
-  useEffect(()=>{active.current=true;const abort=new AbortController();void Promise.resolve().then(()=>refresh(abort.signal)).catch(()=>{if(active.current)setNotice('The archive could not be loaded. Retry when you are connected.');});const subscription=AppState.addEventListener('change',state=>{if(state!=='active'){operation.current?.abort();setArchive(null);setVoiceArchive(null);setKey('');setPrepared(null);setUnlock(null);}else {void refresh().catch(()=>{});}});return()=>{active.current=false;abort.abort();operation.current?.abort();subscription.remove();};},[refresh]);
+  useEffect(()=>{active.current=true;const abort=new AbortController();void Promise.resolve().then(()=>refresh(abort.signal)).catch(()=>{if(active.current)setNotice('The archive could not be loaded. Retry when you are connected.');});const subscription=AppState.addEventListener('change',state=>{if(state!=='active'){if(!isNativeGooglePickerOpen(operation.current?.signal))operation.current?.abort();setArchive(null);setVoiceArchive(null);setKey('');setPrepared(null);setUnlock(null);}else {void refresh().catch(()=>{});}});return()=>{active.current=false;abort.abort();operation.current?.abort();subscription.remove();};},[refresh]);
   // A restored copy remains visible only while its current friendship is open.
   const archiveOpen=Boolean(archive);
   useEffect(()=>{if(!archiveOpen)return;const abort=new AbortController();const check=async()=>{try{const m=await apiRequest<BackupManifest>('/backups/manifest',getToken,{signal:abort.signal});if(!abort.signal.aborted)setArchive(a=>a?{...a,conversations:a.conversations.filter(c=>m.conversations.some(p=>p.peerId===c.peerId))}:null);}catch{if(!abort.signal.aborted)setArchive(null);}};const timer=setInterval(()=>void check(),10000);return()=>{abort.abort();clearInterval(timer);};},[archiveOpen,getToken]);
-  async function run(work:(signal:AbortSignal)=>Promise<void>) {if(locked.current)return;locked.current=true;setBusy(true);setNotice('');const abort=new AbortController();operation.current=abort;try{assertAccountOpen(ownerId);await work(abort.signal);}catch(error){if(active.current&&!abort.signal.aborted)setNotice(error instanceof ApiError&&error.code==='DRIVE_UNCONFIGURED'?'Google Drive connection is not available in this build yet.':error instanceof ApiError&&error.code==='DRIVE_RECONNECT'?'Reconnect Google Drive to continue.':'The archive could not finish this step. Check your connection, available storage, and recovery key, then retry.');}finally{locked.current=false;if(active.current)setBusy(false);}}
+  async function run(work:(signal:AbortSignal)=>Promise<void>) {if(locked.current)return;locked.current=true;setBusy(true);setNotice('');const abort=new AbortController();operation.current=abort;try{assertAccountOpen(ownerId);await work(abort.signal);}catch(error){if(active.current&&!abort.signal.aborted)setNotice(error instanceof NativeGoogleError?error.message:error instanceof ApiError&&error.code==='DRIVE_UNCONFIGURED'?'Google Drive connection is not available in this build yet.':error instanceof ApiError&&error.code==='DRIVE_RECONNECT'?'Reconnect Google Drive to continue.':'The archive could not finish this step. Check your connection, available storage, and recovery key, then retry.');}finally{locked.current=false;if(operation.current===abort)operation.current=null;if(active.current)setBusy(false);}}
   async function create(target:'local'|'drive',signal:AbortSignal) {const value=await collectArchive(getToken,signal);const result=await encryptArchive(value);assertAccountOpen(ownerId);if(!signal.aborted&&active.current)setPrepared({...result,target});}
-  function connect() {if(locked.current)return;const window=prepareDriveWindow();void run(async signal=>{try{const link=await apiRequest<{id:string;authorizationUrl:string}>('/backups/drive/connect',getToken,{method:'POST',signal});if(signal.aborted)return;await window.open(link.authorizationUrl);if(signal.aborted)return;for(let i=0;i<120;i++){await new Promise<void>(resolve=>{const timer=setTimeout(done,3000);function done(){clearTimeout(timer);signal.removeEventListener('abort',done);resolve();}signal.addEventListener('abort',done,{once:true});});if(signal.aborted)return;const result=await apiRequest<{status:string}>('/backups/drive/links/'+link.id,getToken,{signal});if(result.status==='CONNECTED'){window.close();await refresh(signal);setNotice('Google Drive is connected. Choose when to create a backup.');return;}if(result.status!=='PENDING')throw Error();}throw Error();}catch(error){window.close();throw error;}});}
+  function connect() {
+    if(locked.current)return;
+    const connection=prepareDriveConnector();
+    void run(async signal=>{
+      if(connection.kind==='native') {
+        const connected=await connection.connect(getToken,signal);
+        if(connected&&!signal.aborted&&active.current){await refresh(signal);if(!signal.aborted&&active.current)setNotice('Google Drive is connected. Choose when to create a backup.');}
+        return;
+      }
+      const window=connection.window;
+      try {
+        const link=await apiRequest<{id:string;authorizationUrl:string}>('/backups/drive/connect',getToken,{method:'POST',signal});
+        if(signal.aborted)return;await window.open(link.authorizationUrl);if(signal.aborted)return;
+        for(let i=0;i<120;i++) {
+          await new Promise<void>(resolve=>{const timer=setTimeout(done,3000);function done(){clearTimeout(timer);signal.removeEventListener('abort',done);resolve();}signal.addEventListener('abort',done,{once:true});});
+          if(signal.aborted)return;
+          const result=await apiRequest<{status:string}>('/backups/drive/links/'+link.id,getToken,{signal});
+          if(result.status==='CONNECTED'){await refresh(signal);if(!signal.aborted&&active.current)setNotice('Google Drive is connected. Choose when to create a backup.');return;}
+          if(result.status!=='PENDING')throw Error();
+        }
+        throw Error();
+      } finally { window.close(); }
+    });
+  }
   return <View style={{gap:24}}>
     <StoryHeading eyebrow="THE ROYAL ARCHIVE" title="A keepsake for your conversations." subtitle="Encrypted copies, kept by you. Your recovery key opens them." />
     <View style={panel}><WaxSeal color="#68516F" /><Text style={s.dialogTitle}>The private vault</Text><Text style={s.body}>Back up delivered text from currently open friendships. This chat backup excludes unsent messages and letters. Use Voice keepsakes below for your own local recordings. Backups are manual, with room for 10 copies in each location and 10,000 messages per copy.</Text><Text style={s.body}>Save each recovery key separately. Lantern Post and Google Drive cannot recover a lost key. Opening a backup never sends its messages again.</Text>

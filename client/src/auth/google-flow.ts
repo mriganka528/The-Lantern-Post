@@ -29,6 +29,25 @@ export async function activateGoogleSession(
   return true;
 }
 
+export async function activateNativeGoogleSession(
+  result: NativeGoogleResult & { signIn?: { id?: string | null; status: string | null }; signUp?: { id?: string | null; status: string | null } },
+  confirmAgeForSession: (sessionId: string) => void,
+  clearAgeForSession: (sessionId: string) => void,
+  previous?: { signInId?: string | null; signUpId?: string | null },
+) {
+  if (!result.createdSessionId) {
+    // A dismissed native sheet returns the pre-existing Clerk resources. Do
+    // not mislabel an older incomplete email attempt as a new Google failure.
+    if (previous && result.signIn?.id === previous.signInId && result.signUp?.id === previous.signUpId) return false;
+    if (result.signIn?.status === 'needs_second_factor' || result.signIn?.status === 'needs_new_password' || result.signUp?.status === 'missing_requirements') {
+      throw new GoogleSignInError('Google sign-in needs another verification step. Please try email sign-in.');
+    }
+    // Clerk's native hook returns no session when the Google sheet is dismissed.
+    return false;
+  }
+  return activateGoogleSession(result, confirmAgeForSession, clearAgeForSession);
+}
+
 export function googleRedirects(origin: string) {
   const url = new URL(origin);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid application origin.');

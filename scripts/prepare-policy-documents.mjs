@@ -1,5 +1,6 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { policies, policyEdition, policyReviewNotice, publisherName } from '../client/src/legal/policies.ts';
+await mkdir(new URL('../Documentations/', import.meta.url), { recursive: true });
 for (const [kind, name] of [['terms', '22_TERMS_OF_SERVICE_DRAFT.md'], ['privacy', '23_PRIVACY_POLICY_DRAFT.md']]) {
   const policy = policies[kind];
   await writeFile(new URL('../Documentations/' + name, import.meta.url), `# ${policy.title}\n\n${publisherName} — ${policyEdition}\n\n${policyReviewNotice}\n\n${policy.sections.map(section => `## ${section.title}\n\n${section.text}`).join('\n\n')}\n`);

@@ -48,6 +48,7 @@ jobs:
       - run: npm test
       - run: npm run test:hosted-api
       - run: npm run test:api-settings
+      - run: npm run test:drive-setup
       - run: npm run build:api
       - run: npm run test:burn-db --workspace @lantern-post/api
         env:

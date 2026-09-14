@@ -60,6 +60,8 @@
           "color": "#C4A777"
         }
       ],
+      "@clerk/expo-google-signin",
+      "@react-native-google-signin/google-signin",
       "./plugins/with-light-theme"
     ],
     "experiments": {

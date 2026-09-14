@@ -2,12 +2,15 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { ConfigService } from '@nestjs/config';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import type { DriveLink } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import type { Environment } from '../config/environment';
 import { activeAccount } from '../account/account-access';
 import type { DriveAccountCleanup } from '../account/account.service';
 const scope = 'https://www.googleapis.com/auth/drive.appdata';
+const nativeVerifierPrefix = 'native-google-android:';
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+const nativeStateHash = (state: string) => hash('native-google-android\0' + state);
 export const backupOwnerKey = (ownerId: string) => hash('lantern-backup-owner\0' + ownerId);
 export const MAX_BACKUP_BYTES = 14 * 1024 * 1024;
 export interface EncryptedBackup { format: 'lantern-chat-backup'|'lantern-voice-backup'; version: 1; algorithm: 'AES-256-GCM'; data: string; }
@@ -31,25 +34,67 @@ export class DriveService implements DriveAccountCleanup {
     if (!response.ok) throw new ServiceUnavailableException({ code: response.status === 401 || response.status === 403 ? 'DRIVE_RECONNECT' : 'DRIVE_UNAVAILABLE', message: 'Google Drive could not complete this request.' }); return response;
   }
   async status(subject: string) { const id = await this.owner(subject); return { configured: Boolean(this.config.get('GOOGLE_DRIVE')), connected: Boolean(await this.prisma.driveConnection.findUnique({ where: { ownerId: id } })) }; }
+  private async createLink(subject: string, native: boolean) {
+    const ownerId = await this.owner(subject); const s = this.settings();
+    const state = randomBytes(32).toString('base64url'); const verifier = (native ? nativeVerifierPrefix : '') + randomBytes(32).toString('base64url'); const id = randomUUID(); const expiresAt = new Date(Date.now()+600000);
+    await this.prisma.$transaction(async tx => {
+      await activeAccount(tx, ownerId);
+      if (await tx.driveConnection.findUnique({ where: { ownerId } })) throw new ConflictException('Disconnect the current Drive account first.');
+      await tx.driveLink.updateMany({ where: { ownerId, status: 'PENDING' }, data: { status: 'CANCELLED', encryptedVerifier: null } });
+      await tx.driveLink.create({ data: { id, ownerId, stateHash: native ? nativeStateHash(state) : hash(state), encryptedVerifier: this.seal(verifier, ownerId), expiresAt } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    return { s, state, verifier, id, expiresAt };
+  }
   async begin(subject: string) {
-    const ownerId = await this.owner(subject); if(await this.prisma.driveConnection.findUnique({where:{ownerId}}))throw new ConflictException('Disconnect the current Drive account first.'); const s = this.settings(); const state = randomBytes(32).toString('base64url'); const verifier = randomBytes(32).toString('base64url'); const id = randomUUID(); const expiresAt = new Date(Date.now()+600000);
-    await this.prisma.$transaction(async tx => { await activeAccount(tx, ownerId); await tx.driveLink.updateMany({ where: { ownerId, status: 'PENDING' }, data: { status: 'CANCELLED', encryptedVerifier: null } }); await tx.driveLink.create({ data: { id, ownerId, stateHash: hash(state), encryptedVerifier: this.seal(verifier, ownerId), expiresAt } }); }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    const { s, state, verifier, id, expiresAt } = await this.createLink(subject, false);
     const query = new URLSearchParams({ client_id: s.clientId, redirect_uri: s.redirectUri, response_type: 'code', scope, access_type: 'offline', prompt: 'consent', state, code_challenge_method: 'S256', code_challenge: createHash('sha256').update(verifier).digest('base64url') });
     return { id, authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?' + query.toString(), expiresAt: expiresAt.toISOString() };
+  }
+  async beginNative(subject: string) {
+    const { s, state, id, expiresAt } = await this.createLink(subject, true);
+    // Public OAuth client ID only; Google issues the native grant to the
+    // registered Android package/signing certificate. No client secret leaves.
+    return { id, state, webClientId: s.clientId, scopes: [scope], expiresAt: expiresAt.toISOString() };
+  }
+  private async nativeLink(subject: string, id: string, state: string) {
+    const ownerId = await this.owner(subject);
+    const link = await this.prisma.driveLink.findFirst({ where: { id, ownerId, stateHash: nativeStateHash(state) } });
+    if (!link) throw new NotFoundException('Connection unavailable.');
+    return link;
+  }
+  async completeNative(subject: string, id: string, state: string, code: string) {
+    const link = await this.nativeLink(subject, id, state);
+    if (link.status === 'CONNECTED') return { connected: Boolean(await this.prisma.driveConnection.findUnique({ where: { ownerId: link.ownerId } })) };
+    await this.completeLink(link, code, true);
+    return { connected: true };
+  }
+  async cancelNative(subject: string, id: string, state: string) {
+    const link = await this.nativeLink(subject, id, state);
+    if (link.status === 'PENDING' && link.encryptedVerifier && !this.unseal(link.encryptedVerifier, link.ownerId).startsWith(nativeVerifierPrefix)) throw new BadRequestException('Connection unavailable.');
+    const changed = await this.prisma.driveLink.updateMany({ where: { id: link.id, ownerId: link.ownerId, status: 'PENDING' }, data: { status: 'CANCELLED', encryptedVerifier: null } });
+    return { cancelled: changed.count > 0 || link.status === 'CANCELLED' };
   }
   async callback(state: string, code?: string) {
     const link = await this.prisma.driveLink.findUnique({ where: { stateHash: hash(state) } });
     if (!link || link.status !== 'PENDING' || !link.encryptedVerifier || link.expiresAt.getTime() <= Date.now() || !code) throw new BadRequestException('This connection has expired.');
+    await this.completeLink(link, code, false);
+  }
+  private async completeLink(link: DriveLink, code: string, native: boolean) {
+    if (link.status !== 'PENDING' || !link.encryptedVerifier || link.expiresAt.getTime() <= Date.now() || !code) throw new BadRequestException('This connection has expired.');
     const s = this.settings(); let credential: string | undefined; let claimed=false;
     try {
       const verifier = this.unseal(link.encryptedVerifier, link.ownerId);
+      if (native !== verifier.startsWith(nativeVerifierPrefix)) throw Error();
       const claim = await this.prisma.driveLink.updateMany({ where: { id: link.id, status: 'PENDING', encryptedVerifier: link.encryptedVerifier }, data: { encryptedVerifier: null, exchangingUntil:new Date(Date.now()+120000) } }); if (!claim.count) throw Error(); claimed=true;
-      const response = await this.request('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', client_id: s.clientId, client_secret: s.clientSecret, redirect_uri: s.redirectUri, code, code_verifier: verifier }) });
+      // Browser codes retain PKCE and the registered HTTPS redirect. Native
+      // serverAuthCode grants use Google's installed-app exchange, with an
+      // authenticated owner-bound one-use state; never mix the two protocols.
+      const response = await this.request('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', client_id: s.clientId, client_secret: s.clientSecret, code, ...(native ? { redirect_uri: '' } : { redirect_uri: s.redirectUri, code_verifier: verifier }) }) });
       const token = await response.json() as { refresh_token?: string; access_token?: string; scope?: string };
       credential = token.refresh_token ?? token.access_token;
       if (typeof credential==='string' && credential.length<=10000) await this.prisma.driveLink.update({where:{id:link.id},data:{encryptedCleanupToken:this.seal(credential,link.ownerId)}});
       if (!token.refresh_token || typeof token.refresh_token !== 'string' || token.refresh_token.length > 10000 || !token.scope?.split(' ').includes(scope)) throw Error();
-      await this.prisma.$transaction(async tx => { await activeAccount(tx, link.ownerId); const current = await tx.driveLink.findUnique({ where: { id: link.id } }); if (current?.status !== 'PENDING') throw Error(); await tx.driveConnection.upsert({ where: { ownerId: link.ownerId }, create: { ownerId: link.ownerId, encryptedRefreshToken: this.seal(token.refresh_token!, link.ownerId) }, update: { encryptedRefreshToken: this.seal(token.refresh_token!, link.ownerId), connectedAt: new Date() } }); await tx.driveLink.update({ where: { id: link.id }, data: { status: 'CONNECTED', encryptedVerifier: null, encryptedCleanupToken:null, exchangingUntil:null } }); }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      await this.prisma.$transaction(async tx => { await activeAccount(tx, link.ownerId); const current = await tx.driveLink.findUnique({ where: { id: link.id } }); if (current?.status !== 'PENDING' || current.expiresAt.getTime() <= Date.now() || await tx.driveConnection.findUnique({ where: { ownerId: link.ownerId } })) throw Error(); await tx.driveConnection.create({ data: { ownerId: link.ownerId, encryptedRefreshToken: this.seal(token.refresh_token!, link.ownerId) } }); await tx.driveLink.update({ where: { id: link.id }, data: { status: 'CONNECTED', encryptedVerifier: null, encryptedCleanupToken:null, exchangingUntil:null } }); }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch {
       if(!claimed)throw new BadRequestException('This connection was already used.');
       let revoked=!credential;

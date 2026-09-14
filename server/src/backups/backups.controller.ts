@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Header, HttpCode, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
-import { IsInt, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsString, IsUUID, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { ServerResponse } from 'node:http';
 import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
@@ -15,6 +15,13 @@ class PageQuery {
 }
 class FileParam { @IsString() @Matches(/^[a-zA-Z0-9_-]{1,200}$/) id!: string; }
 class LinkParam { @IsUUID() id!: string; }
+class NativeLinkDto {
+  @IsUUID() id!: string;
+  @IsString() @Matches(/^[A-Za-z0-9_-]{43}$/) state!: string;
+}
+class NativeGrantDto extends NativeLinkDto {
+  @IsString() @MinLength(1) @MaxLength(4096) code!: string;
+}
 class EnvelopeDto {
   @IsString() @Matches(/^lantern-(chat|voice)-backup$/) format!: string;
   @IsInt() @Min(1) @Max(1) version!: number;
@@ -32,6 +39,12 @@ export class BackupsController {
   status(@CurrentIdentity() i: AuthIdentity) { return this.drive.status(i.subject); }
   @Post('drive/connect') @HttpCode(200) @RequestLimit('drive-connect',10)
   connect(@CurrentIdentity() i: AuthIdentity) { return this.drive.begin(i.subject); }
+  @Post('drive/native/connect') @HttpCode(200) @Header('Cache-Control','no-store') @RequestLimit('drive-connect',10)
+  connectNative(@CurrentIdentity() i: AuthIdentity) { return this.drive.beginNative(i.subject); }
+  @Post('drive/native/complete') @HttpCode(200) @Header('Cache-Control','no-store') @RequestLimit('drive-native-complete',30)
+  completeNative(@CurrentIdentity() i: AuthIdentity,@Body() body: NativeGrantDto) { return this.drive.completeNative(i.subject,body.id,body.state,body.code); }
+  @Post('drive/native/cancel') @HttpCode(200) @Header('Cache-Control','no-store') @RequestLimit('drive-native-cancel',30)
+  cancelNative(@CurrentIdentity() i: AuthIdentity,@Body() body: NativeLinkDto) { return this.drive.cancelNative(i.subject,body.id,body.state); }
   @Get('drive/links/:id') @Header('Cache-Control','no-store') @RequestLimit('drive-link',90)
   link(@CurrentIdentity() i: AuthIdentity,@Param() p: LinkParam) { return this.drive.linkStatus(i.subject,p.id); }
   @Get('drive/files') @Header('Cache-Control','no-store') @RequestLimit('drive-list',30)
