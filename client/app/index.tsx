@@ -14,12 +14,15 @@ import { friendsKey, useFriendsList, useFriendsSummary } from '../src/friends/us
 import { createLetterBoxTransport } from '../src/letters/friend-letter-api';
 import { letterboxKey, useLetterboxSummary } from '../src/letters/use-letterbox';
 import { AccountMenu } from '../src/account/account-menu';
+import { PalaceGuidanceProvider } from '../src/guidance/guidance-provider';
 
 export default function HomeScreen() {
   const profile = useSelfProfile();
   const palace = usePalace(profile.data?.user?.characterId ?? null);
   const router = useRouter();
   const [account, setAccount] = useState(false);
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
   const getToken = useSessionToken(); const cache = useQueryClient();
   const friendsApi = useMemo(() => createFriendsTransport(getToken), [getToken]);
   const letterboxApi = useMemo(() => createLetterBoxTransport(getToken), [getToken]);
@@ -37,10 +40,10 @@ export default function HomeScreen() {
     <ActionButton label="Try again" onPress={() => { void palace.refetch(); }} /><ActionButton label="Choose a companion" secondary onPress={() => router.push('/choose-character')} /><SignOutButton />
   </AuthPage>;
   if (!palace.data.character) return <Redirect href="/choose-character" />;
-  return <View style={{ flex: 1 }}>
+  return <PalaceGuidanceProvider key={ownerId} enabled={focused}><View style={{ flex: 1 }}>
     <PalaceHome key={palace.data.character.id} character={palace.data.character} username={profile.data.user.username} onCompanions={() => router.push('/choose-character')} onAccount={() => setAccount(true)} onWrite={() => router.push('/writing-desk')} onInfinity={() => router.push('/infinity')}
       onFriends={() => router.push('/friends')} friends={friends.data?.pages.flatMap(page => page.items)} friendSummary={friendSummary.data} friendsUnavailable={friends.isError || friendSummary.isError}
       onInbox={() => router.push('/inbox')} unreadLetters={letterbox.data?.unread} onWriteToFriend={person => router.push({ pathname: '/writing-desk', params: { recipient: person.id } })} onChatToFriend={person => router.push({ pathname: '/chat', params: { friend: person.id } })} />
     {account && <AccountMenu ownerId={ownerId} username={profile.data.user.username} getToken={getToken} onClose={() => setAccount(false)} onPrivacy={() => { setAccount(false); router.push('/privacy'); }} signOut={<SignOutButton />} />}
-  </View>;
+  </View></PalaceGuidanceProvider>;
 }

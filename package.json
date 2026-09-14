@@ -13,6 +13,7 @@
     "check:voice-backup-ui": "node scripts/check-phase10-ui.mjs --voice-backup",
     "check:live-palace-ui": "node scripts/check-phase10-ui.mjs --live",
     "check:mobile-ui": "node scripts/check-phase10-ui.mjs --mobile",
+    "check:guidance-ui": "node scripts/check-phase10-ui.mjs --guidance",
     "check:session-ui": "node scripts/check-phase10-ui.mjs --session",
     "check:bell-ui": "node scripts/check-phase10-ui.mjs --bell",
     "check:chat-speed-ui": "node scripts/check-phase10-ui.mjs --chat-speed",

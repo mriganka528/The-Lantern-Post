@@ -351,6 +351,12 @@ Apply the new `20260914080000_live_palace_independent_letters` migration with `n
 
 Phone push is prepared for chat, private letters and invitations. The user chose browser-only development for now, so actual EAS/Firebase setup and device testing remain deferred. See `Documentations/30_LIVE_PALACE_HANDOFF.md`. `npm.cmd run check:live-palace-ui` verifies live alerts, private-copy deletion and royal controls with isolated accounts.
 
+## Palace guidance
+
+The app offers a nine-step, first-visit tour that points to the actual palace controls and sections. It opens after the first completed palace entrance, can be skipped or finished, and can be replayed from **Guidance**, the permanent home section, or **Account → Replay palace guidance**. The choice is stored on the installation/browser profile, contains no account or letter data, and does not require a backend change. Tours never send or edit a letter and return to the starting scroll position when closed.
+
+`npm.cmd run check:guidance-ui` runs the isolated browser walkthrough after the existing API test fixtures have been compiled. See `Documentations/45_PALACE_GUIDANCE_HANDOFF.md` for implementation, checks and native verification boundaries.
+
 ## Separate showcase website
 
 The independent Next.js site lives in **`showcase-website/`**, with its own package manifest, lockfile, public artwork and actual app screenshot gallery. Run `npm.cmd ci` and `npm.cmd run dev` from that folder, then open http://localhost:3100. It uses no app API or private credentials.

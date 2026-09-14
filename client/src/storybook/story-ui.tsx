@@ -1,4 +1,5 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import type { ScrollViewProps } from 'react-native';
 import type { PropsWithChildren, ReactNode, Ref } from 'react';
 import { useContext } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,11 +9,11 @@ import { useReducedMotion } from './use-reduced-motion';
 import { NavigationActions, navIcon, RoyalNavButton, RoyalPageHeader, WorkspaceNavigation } from './royal-navigation';
 import { useBlockingPalaceModal } from '../realtime/palace-live-state';
 
-export function StoryShell({ children, actions, chapter = 'A WORLD FOR YOUR WORDS', scrollRef, beforeBellOpen }: PropsWithChildren<{ actions?: ReactNode; chapter?: string; scrollRef?: Ref<ScrollView>; beforeBellOpen?: () => boolean }>) {
+export function StoryShell({ children, actions, chapter = 'A WORLD FOR YOUR WORDS', scrollRef, beforeBellOpen, onScroll, scrollEnabled = true }: PropsWithChildren<{ actions?: ReactNode; chapter?: string; scrollRef?: Ref<ScrollView>; beforeBellOpen?: () => boolean; onScroll?: ScrollViewProps['onScroll']; scrollEnabled?: boolean }>) {
   const { width } = useWindowDimensions();
   const inWorkspace = useContext(WorkspaceNavigation);
   return <SafeAreaView style={s.screen} edges={inWorkspace ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
-    <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={onScroll ? 32 : undefined} scrollEnabled={scrollEnabled}>
       <View style={[s.page, width < 600 && s.smallPage]}>
         <RoyalPageHeader chapter={chapter} actions={actions} beforeBellOpen={beforeBellOpen} />
         {children}

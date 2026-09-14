@@ -6,15 +6,18 @@ import { UsernameCard } from '../friends/username-card';
 import { NotificationSettings } from '../notifications/notification-settings';
 import { DiagnosticsSettings } from '../diagnostics/diagnostics-settings';
 import { PolicyLinks } from '../legal/policy-links';
+import { useGuidance } from '../guidance/guidance-context';
 
 export function AccountMenu({ ownerId, username, getToken, onClose, onPrivacy, signOut }: {
   ownerId: string; username: string; getToken: GetSessionToken;
   onClose: () => void; onPrivacy: () => void; signOut?: ReactNode;
 }) {
+  const guidance = useGuidance();
   return <StoryDialog title="Your little corner" onClose={onClose}>
     <Text style={s.body}>Signed in as {username}</Text>
     <UsernameCard username={username} />
     <StoryButton label="Chat backups & privacy" onPress={onPrivacy} />
+    {guidance && <StoryButton label="Replay palace guidance" secondary onPress={() => { onClose(); guidance.start(); }} />}
     <NotificationSettings ownerId={ownerId} getToken={getToken} />
     <DiagnosticsSettings />
     <PolicyLinks />
