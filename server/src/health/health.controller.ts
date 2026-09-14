@@ -1,4 +1,4 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Header, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiServiceUnavailableResponse, ApiTags } from '@nestjs/swagger';
 import type { HealthResponse, ReadinessResponse } from '@lantern-post/shared-types';
 import { PrismaService } from '../database/prisma.service';
@@ -10,6 +10,7 @@ export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'API process liveness' })
   @ApiOkResponse({ type: HealthResponseDto, description: 'The API process is running.' })
   health(): HealthResponse {

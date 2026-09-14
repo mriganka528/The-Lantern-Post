@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clientEnvironment } from '../src/config/environment';
+import { clientEnvironment, DEFAULT_API_URL } from '../src/config/environment';
 
 const key = 'pk_test_dGVzdC5jbGVyay5hY2NvdW50cy5kZXYk';
+
+test('web and native use the hosted API when no explicit address is supplied', () => {
+  for (const development of [true, false]) {
+    for (const apiVariable of ['EXPO_PUBLIC_API_URL', 'EXPO_PUBLIC_WEB_API_URL'] as const) {
+      assert.equal(clientEnvironment({ apiUrl: undefined, clerkPublishableKey: key, development, apiVariable }).apiUrl, DEFAULT_API_URL);
+    }
+  }
+});
 
 test('web and native builds select independent API addresses', async () => {
   const names = ['EXPO_PUBLIC_API_URL', 'EXPO_PUBLIC_WEB_API_URL', 'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY'] as const;

@@ -7,10 +7,18 @@ import { checkHostedApi, deploymentOrigin } from './check-hosted-api.mjs';
 const require = createRequire(new URL('../server/package.json', import.meta.url));
 const { WebSocketServer } = require('ws');
 
-async function fixture(t, { ready = true, privateStatus = 401, sockets = true, allowOrigin = true, stalledBody = false } = {}) {
+async function fixture(t, { ready = true, privateStatus = 401, sockets = true, allowOrigin = true, corsOrigin, stalledBody = false } = {}) {
   const requests = []; const probes = [];
   const server = createServer((request, response) => {
     requests.push({ method: request.method, path: request.url, auth: request.headers.authorization });
+    if (request.method === 'OPTIONS') {
+      response.statusCode = 204;
+      if (request.headers.origin === corsOrigin) {
+        response.setHeader('Access-Control-Allow-Origin', corsOrigin);
+        response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      }
+      response.end(); return;
+    }
     response.setHeader('Content-Type', 'application/json');
     if (request.url === '/health') {
       if (stalledBody) { response.write('{'); return; }
@@ -85,4 +93,18 @@ test('the request deadline includes a response body that never finishes', async 
   const api = await fixture(t, { stalledBody: true });
   await assert.rejects(checkHostedApi(api.url, { ...options, timeoutMs: 150 }));
   assert.equal(api.requests.length, 1); assert.equal(api.probes.length, 0);
+});
+
+test('optional browser checks verify both CORS and socket origins without authentication', async t => {
+  const origin = 'http://localhost:8081'; const api = await fixture(t, { corsOrigin: origin });
+  await checkHostedApi(api.url, { ...options, webOrigin: origin });
+  assert.equal(api.requests.at(-1).method, 'OPTIONS');
+  assert.ok(api.requests.every(request => request.auth === undefined));
+  assert.deepEqual(api.probes.slice(2).map(probe => probe.origin), [origin, origin]);
+});
+
+test('missing browser CORS configuration fails despite healthy native sockets', async t => {
+  const api = await fixture(t);
+  await assert.rejects(checkHostedApi(api.url, { ...options, webOrigin: 'http://localhost:8081' }), /DEVELOPMENT_WEB_ORIGINS/);
+  assert.equal(api.probes.length, 2);
 });

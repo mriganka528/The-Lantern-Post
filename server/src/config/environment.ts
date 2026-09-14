@@ -7,6 +7,7 @@ import { driveSettings } from '../backups/drive-config';
 import type { DriveSettings } from '../backups/drive-config';
 import { supabaseVoiceSettings } from '../voice/supabase-settings';
 import type { SupabaseVoiceSettings } from '../voice/supabase-settings';
+import { webOrigins } from './web-origins';
 
 export interface Environment {
   NODE_ENV: 'development' | 'test' | 'production';
@@ -64,18 +65,9 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
   const authorizedParties = optionalString(input.CLERK_AUTHORIZED_PARTIES, 'CLERK_AUTHORIZED_PARTIES')
     ?.split(',').map((party) => party.trim()).filter(Boolean) ?? [];
 
-  const origins = optionalString(input.WEB_ORIGINS, 'WEB_ORIGINS')
-    ?? (nodeEnv === 'production' ? '' : 'http://localhost:8081,http://127.0.0.1:8081');
-  const webOrigins = origins.split(',').map((origin) => origin.trim()).filter(Boolean).map((origin) => {
-    let url: URL;
-    try { url = new URL(origin); } catch { throw new Error('WEB_ORIGINS must contain exact HTTP(S) origins.'); }
-    const localDevelopment = nodeEnv !== 'production' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    if ((!['http:', 'https:'].includes(url.protocol)) || (url.protocol === 'http:' && !localDevelopment) ||
-      url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
-      throw new Error('WEB_ORIGINS requires HTTPS origins, or HTTP loopback origins during development.');
-    }
-    return url.origin;
-  });
+  const allowedWebOrigins = webOrigins(nodeEnv === 'production',
+    optionalString(input.WEB_ORIGINS, 'WEB_ORIGINS'),
+    optionalString(input.DEVELOPMENT_WEB_ORIGINS, 'DEVELOPMENT_WEB_ORIGINS'));
 
   return {
     NODE_ENV: nodeEnv as Environment['NODE_ENV'],
@@ -86,7 +78,7 @@ export function validateEnvironment(input: Record<string, unknown>): Environment
     CLERK_PUBLISHABLE_KEY: clerk.publishableKey,
     CLERK_SECRET_KEY: clerk.secretKey,
     CLERK_AUTHORIZED_PARTIES: [...new Set(authorizedParties)],
-    WEB_ORIGINS: [...new Set(webOrigins)],
+    WEB_ORIGINS: allowedWebOrigins,
     EXPO_PUSH_ENABLED: String(pushEnabled) === 'true',
     EXPO_ACCESS_TOKEN: optionalString(input.EXPO_ACCESS_TOKEN, 'EXPO_ACCESS_TOKEN'),
     VOICE_STORAGE: voiceStorage,

@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Current active task: public HTTPS API preparation, requested as step 3 of the development list. Follow [40_PUBLIC_API_DEPLOYMENT.md](./40_PUBLIC_API_DEPLOYMENT.md) for the root-directory Node deployment, server-only settings and HTTP/WSS verification. Free/no-card host eligibility and actual deployment remain operator tasks. The first Expo/project/development-APK setup is user-reported complete; the separate [Android device checklist](./39_ANDROID_DEVICE_CHECKLIST.md) remains unconfirmed. Generic browser real-account testing remains user-confirmed complete.
+Current active task: Render as the default backend for browser and Android, with explicit local operation available. The user reports deploying `https://the-lantern-post.onrender.com`; follow [41_RENDER_DEFAULT_HANDOFF.md](./41_RENDER_DEFAULT_HANDOFF.md) for the new development-browser origin setting, mode commands and hosted checks. Generic browser real-account testing and the first Android setup remain user-confirmed complete; the separate device checklist and new hosted regression check remain unconfirmed.
 
 Current status: see [37_RELEASE_STATUS.md](./37_RELEASE_STATUS.md). The user has confirmed real-account testing complete. Supabase voice storage and current database migrations are user-confirmed working/applied. Remaining items are Google Drive OAuth setup, legal details, public deployment/operations, and the separately deferred native/push/release work. Earlier phase handoffs record their status at the time they were written.
 

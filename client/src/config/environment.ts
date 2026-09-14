@@ -5,8 +5,10 @@ interface ClientEnvironmentInput {
   apiVariable: 'EXPO_PUBLIC_API_URL' | 'EXPO_PUBLIC_WEB_API_URL';
 }
 
+export const DEFAULT_API_URL = 'https://the-lantern-post.onrender.com';
+
 export function clientEnvironment({ apiUrl, clerkPublishableKey, development, apiVariable }: ClientEnvironmentInput) {
-  if (!apiUrl) throw new Error(`Set ${apiVariable} in client/.env, then restart Expo.`);
+  apiUrl = apiUrl || DEFAULT_API_URL;
   const parsedApiUrl = new URL(apiUrl);
   if (!['http:', 'https:'].includes(parsedApiUrl.protocol) || parsedApiUrl.username || parsedApiUrl.password || parsedApiUrl.search || parsedApiUrl.hash) {
     throw new Error(`${apiVariable} must be an HTTP(S) URL without credentials, query parameters, or fragments.`);

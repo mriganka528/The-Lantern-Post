@@ -2,7 +2,7 @@
 
 Write it. Seal it. Let it go.
 
-Current active work: a continuously running HTTPS API for Android. The root `Dockerfile` builds the API from the repository root and runs it on port 3000; `.dockerignore` excludes credentials and mobile build artifacts. Northflank is the selected candidate, pending account creation and confirmation of a continuously running Free/no-card Sandbox service. Render Free is unsuitable because it can sleep. Supply server credentials only as runtime settings and check a deployed URL with `npm run check:hosted-api -- --url=https://YOUR-API-HOST`. Full local instructions are in [the public API handoff](Documentations/40_PUBLIC_API_DEPLOYMENT.md). The first Android setup is user-reported complete; automated moderation remains disabled.
+The default backend is `https://the-lantern-post.onrender.com`, deployed according to the user. Browser and native development both use it; a local backend is optional. Start the browser with `npm run dev:web -- --clear` or the development APK with `npm run dev:mobile -- --dev-client --clear`. The Render service needs the latest server revision plus `WEB_ORIGINS=https://the-lantern-post.onrender.com` and `DEVELOPMENT_WEB_ORIGINS=http://localhost:8081,http://127.0.0.1:8081` for local browser development. See [the Render default handoff](Documentations/41_RENDER_DEFAULT_HANDOFF.md). Use `npm run api:local` for explicit local operation and `npm run api:hosted` to return; restart Expo after switching. Automated moderation remains disabled.
 
 The Expo app and NestJS API defined in [Documentations](Documentations/README.md). The five specification documents remain the reference, with the user's subsequent choices recorded in the handoffs. The user has requested a browser preview and a simpler client/server layout.
 
@@ -111,8 +111,8 @@ Use `npm.cmd ci` with the checked-in `package-lock.json` for repeatable installs
 2. Keep Clerk's username, first name, and last name requirements disabled. Lantern Post chooses and stores its own username after Clerk verifies the email.
 3. Copy the application's **publishable key** (`pk_test_...`) into `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` in `client/.env`.
 4. In `server/.env`, set `CLERK_PUBLISHABLE_KEY` to the same publishable key and `CLERK_SECRET_KEY` to the matching `sk_test_...` dashboard key. You do not supply `CLERK_ISSUER` or `CLERK_JWT_KEY`: the server derives its trusted issuer from the publishable key, and Clerk retrieves/caches the signing keys. The secret belongs only in `server/.env`.
-5. `WEB_ORIGINS` lists exact trusted browser origins for CORS and Clerk web session tokens. Local preview defaults are `http://localhost:8081` and `http://127.0.0.1:8081`. Additional trusted token `azp` values may be listed in `CLERK_AUTHORIZED_PARTIES`; native tokens may omit that claim. Production web origins must be explicit HTTPS origins. Wildcards are rejected.
-6. Restart the API and Expo after setting these values.
+5. `WEB_ORIGINS` lists exact HTTPS origins for the hosted API/browser frontend. Add trusted local previews through `DEVELOPMENT_WEB_ORIGINS=http://localhost:8081,http://127.0.0.1:8081` on Render and the local server. These settings apply to CORS, Clerk web token authorized parties and socket origins. Additional trusted token `azp` values may be listed in `CLERK_AUTHORIZED_PARTIES`; native tokens may omit that claim. Wildcards and public HTTP development origins are rejected.
+6. Redeploy the hosted API and restart Expo after changing their respective settings. A local API restart is needed only when using local mode.
 
 The authentication settings are:
 
@@ -148,13 +148,7 @@ Cancellation leaves the user on sign-in. An incomplete provider flow never activ
 
 Run `npm.cmd install` once after this folder/dependency update to refresh the workspace links and web packages. The original root commands, including `dev:api` and `dev:mobile`, are retained.
 
-In terminal 1, start the backend:
-
-```powershell
-npm.cmd run dev:server
-```
-
-In terminal 2, start the browser preview:
+Start the browser preview using the default Render backend:
 
 ```powershell
 npm.cmd run dev:web -- --clear
@@ -162,11 +156,11 @@ npm.cmd run dev:web -- --clear
 
 Open **http://localhost:8081**. `dev:web` asks Expo to open the browser. `dev:mobile -- --clear` now also supports web; press **w** in that terminal to open it. Stop any old dev processes that were started before the folder move and restart using these commands.
 
-`client/.env` has separate addresses so browser preview does not use Android's emulator-only hostname:
+`client/.env` keeps independent addresses for overrides; both default to Render:
 
 ```dotenv
-EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
-EXPO_PUBLIC_WEB_API_URL=http://localhost:3000
+EXPO_PUBLIC_API_URL=https://the-lantern-post.onrender.com
+EXPO_PUBLIC_WEB_API_URL=https://the-lantern-post.onrender.com
 ```
 
 Clerk manages browser sessions; Expo SecureStore is used only on native. The root layout keeps one visible browser CAPTCHA mount point beside the router for email, Google, callback, and loading screens. Navigation and verification-stage changes cannot remove or duplicate it. Google can create an account too, so CAPTCHA support is available on the sign-in screen. Authentication and username rules are shared across platforms. Finishing sign-in still requires valid Clerk verification settings on the server and migrated Neon tables.
@@ -179,15 +173,16 @@ For production web output, set `EXPO_PUBLIC_WEB_API_URL` to the HTTPS API and co
 npm.cmd run export:web
 ```
 
-## API and native device addresses
+## Optional local API reference
 
-In one terminal:
+Only when local operation is needed, select it and start the API in one terminal:
 
 ```powershell
+npm.cmd run api:local
 npm.cmd run dev:api
 ```
 
-Endpoints:
+Restart Expo in another terminal. For a physical phone, select `api:local -- --url=http://YOUR_PC_LAN_IP:3000` instead of localhost. Return to Render with `npm.cmd run api:hosted` and restart Expo. Local development endpoints are listed below; the hosted API has the same paths except the development-only documentation endpoints.
 
 | URL | Purpose |
 | --- | --- |

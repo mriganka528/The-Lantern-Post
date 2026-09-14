@@ -57,6 +57,16 @@ test('voice storage is optional and partial configuration fails without exposing
   assert.equal(validateEnvironment(base).VOICE_STORAGE, undefined);
   assert.throws(() => validateEnvironment({ ...base, VOICE_STORAGE_SECRET_ACCESS_KEY: 'never-show-this-secret' }), error => error instanceof Error && /all VOICE_STORAGE/.test(error.message) && !error.message.includes('never-show'));
 });
+
+test('hosted API accepts explicitly configured local development origins without broadening production origins', () => {
+  const production = { ...base, ...auth, NODE_ENV: 'production', WEB_ORIGINS: 'https://api.example.com' };
+  const environment = validateEnvironment({ ...production, DEVELOPMENT_WEB_ORIGINS: 'http://localhost:8081,http://127.0.0.1:8081,http://192.168.29.181:3000,http://localhost:8081' });
+  assert.deepEqual(environment.WEB_ORIGINS, ['https://api.example.com', 'http://localhost:8081', 'http://127.0.0.1:8081', 'http://192.168.29.181:3000']);
+  assert.deepEqual(validateEnvironment(production).WEB_ORIGINS, ['https://api.example.com']);
+  for (const origin of ['*', 'http://public.example', 'https://public.example', 'http://localhost.evil.example:8081', 'http://8.8.8.8', 'http://172.32.0.1', 'http://user:secret@localhost:8081', 'http://localhost:8081/path', 'http://localhost:8081?secret=value', 'null']) {
+    assert.throws(() => validateEnvironment({ ...production, DEVELOPMENT_WEB_ORIGINS: origin }), error => error instanceof Error && /DEVELOPMENT_WEB_ORIGINS/.test(error.message) && !error.message.includes('secret'));
+  }
+});
 test('automated moderation defaults off in development and production and an explicit future required mode validates',()=>{
   assert.equal(validateEnvironment(base).MODERATION_MODE,'disabled');assert.equal(validateEnvironment({...base,...auth,NODE_ENV:'production'}).MODERATION_MODE,'disabled');assert.equal(validateEnvironment({...base,MODERATION_MODE:'required'}).MODERATION_MODE,'required');assert.throws(()=>validateEnvironment({...base,MODERATION_MODE:'allow-everything'}),/MODERATION_MODE/);
 });
