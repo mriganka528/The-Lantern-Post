@@ -7,7 +7,7 @@ A separate Next.js App Router website for Lantern Post. Its package manifest, lo
 Use Node.js 22 or 24 (24 recommended).
 
 ```powershell
-cd "D:\Mobile dev\The Lantern Post\Showcase website"
+cd "D:\Mobile dev\The Lantern Post\showcase-website"
 npm.cmd ci
 npm.cmd run dev
 ```
@@ -27,13 +27,19 @@ The build uses Next's webpack mode consistently in development and production. A
 
 1. Commit this entire folder, **including `package-lock.json` and `public/art`**, and push your repository.
 2. In Vercel, choose **Add New → Project** and import the GitHub repository.
-3. Set **Root Directory** to **`Showcase website`** (exact spelling, including the space).
+3. Set **Root Directory** to **`showcase-website`** (lowercase, with a hyphen and no spaces).
 4. Use framework **Next.js**, Node.js **24.x**, install command **`npm ci`**, and build command **`npm run build`**. `vercel.json` supplies the commands.
 5. Leave **Output Directory** at the Next.js default. Do not set it to the mobile app's dist folder. This site does not need files outside its root directory; leave Vercel's outside-root source inclusion off.
 6. No environment variables are required. Deploy on the free Hobby plan if eligible; no paid integration is used by this code.
 7. Optionally set `NEXT_PUBLIC_SITE_URL` to your final HTTPS showcase URL and redeploy for social/share metadata and the sitemap. The Vercel production/deployment URL is used automatically when available.
 
 No backend redeployment, database migration, Clerk callback change or Android rebuild is needed to deploy this website. A local successful build checks source/build readiness; it is not a claim that a Vercel deployment has already succeeded.
+
+### Fixing an existing Vercel project after the folder rename
+
+Vercel rejected the old `Showcase website/___next_launcher.cjs` function name because it contained a space. The folder is now `showcase-website`. Commit and push the rename, then open the existing Vercel project's **Settings → Build and Deployment → Root Directory**, select `showcase-website`, and save. Deploy the latest commit with **Use existing Build Cache** unchecked. Keep the Next.js framework and default output directory. The ESLint deprecation and `unrs-resolver` install-script warnings were not the reported invalid-function-name error.
+
+Keep future folder names in the deployed path free of spaces. Do not edit the generated `___next_launcher.cjs` file; Vercel regenerates it during deployment.
 
 ## Change the APK link
 

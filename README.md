@@ -353,6 +353,6 @@ Phone push is prepared for chat, private letters and invitations. The user chose
 
 ## Separate showcase website
 
-The independent Next.js site lives in **`Showcase website/`**, with its own package manifest, lockfile, public artwork and actual app screenshot gallery. Run `npm.cmd ci` and `npm.cmd run dev` from that folder, then open http://localhost:3100. It uses no app API or private credentials.
+The independent Next.js site lives in **`showcase-website/`**, with its own package manifest, lockfile, public artwork and actual app screenshot gallery. Run `npm.cmd ci` and `npm.cmd run dev` from that folder, then open http://localhost:3100. It uses no app API or private credentials.
 
-For Vercel, set Root Directory to `Showcase website`, use the Next.js framework and Node 24, and leave the output directory at its default. Read [the showcase setup guide](<Showcase website/README.md>) for full deployment instructions. Change the temporary APK link in `Showcase website/src/config/site.ts`. The mobile EAS upload excludes the showcase folder.
+For Vercel, set Root Directory to `showcase-website`, use the Next.js framework and Node 24, and leave the output directory at its default. Read [the showcase setup guide](showcase-website/README.md) for full deployment instructions. Change the temporary APK link in `showcase-website/src/config/site.ts`. Keep the folder name free of spaces: Vercel includes it in generated function names. The mobile EAS upload excludes the showcase folder.
