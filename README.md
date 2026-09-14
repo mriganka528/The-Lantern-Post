@@ -350,3 +350,9 @@ Private-letter removal now hides only your own copy. The other participant keeps
 Apply the new `20260914080000_live_palace_independent_letters` migration with `npm.cmd run db:deploy`, then restart API and web. This migration is additional to the previously completed database setup. Chat acknowledgements appear immediately without skipping earlier incoming messages; voice API uploads validate/promote in one request and no longer need a second finish request. The courier still walks continuously, with a shorter skippable ceremony.
 
 Phone push is prepared for chat, private letters and invitations. The user chose browser-only development for now, so actual EAS/Firebase setup and device testing remain deferred. See `Documentations/30_LIVE_PALACE_HANDOFF.md`. `npm.cmd run check:live-palace-ui` verifies live alerts, private-copy deletion and royal controls with isolated accounts.
+
+## Separate showcase website
+
+The independent Next.js site lives in **`Showcase website/`**, with its own package manifest, lockfile, public artwork and actual app screenshot gallery. Run `npm.cmd ci` and `npm.cmd run dev` from that folder, then open http://localhost:3100. It uses no app API or private credentials.
+
+For Vercel, set Root Directory to `Showcase website`, use the Next.js framework and Node 24, and leave the output directory at its default. Read [the showcase setup guide](<Showcase website/README.md>) for full deployment instructions. Change the temporary APK link in `Showcase website/src/config/site.ts`. The mobile EAS upload excludes the showcase folder.

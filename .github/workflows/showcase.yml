@@ -1,0 +1,28 @@
+name: Showcase website
+
+on:
+  push:
+    paths: ["Showcase website/**", ".github/workflows/showcase.yml"]
+  pull_request:
+    paths: ["Showcase website/**", ".github/workflows/showcase.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Showcase website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: Showcase website/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run typecheck

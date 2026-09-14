@@ -43,7 +43,17 @@ export function PalaceHome({ character, username, onCompanions, onAccount, onWri
         {onInbox && <View testID="home-letterbox-entrance" style={styles.letterboxLink}><View style={styles.letterboxHeading}><StoryIcon kind="letter" size={22} color="#927035" /><Text style={[styles.roomTitle, { fontSize: 21, flexShrink: 1 }]}>The palace letterbox</Text></View><Text style={styles.companionTitle}>{unreadLetters ? `${unreadLetters} unopened letter${unreadLetters === 1 ? '' : 's'} beneath the palace doors` : 'A quiet place for letters between friends'}</Text><View style={{ alignSelf: 'flex-start', maxWidth: '100%' }}><RoyalNavButton icon="letter" label={unreadLetters ? `Open my letterbox (${unreadLetters})` : 'Open my letterbox  →'} onPress={onInbox} /></View></View>}
       </View>}
       <View testID="home-worlds" style={[styles.rooms, wide && { flexDirection: 'row' }]}>
-      {onInfinity && <View style={[styles.room, wide && { flex: 1 }, { backgroundColor: '#EAE5ED', borderColor: '#C2B1C5', flexDirection: small ? 'column' : 'row', alignItems: small ? 'stretch' : 'center', gap: 14 }]}><StoryIcon kind="star" size={small ? 24 : 44} color="#A48A57" /><View style={{ flex: small ? undefined : 1, gap: 8, minWidth: 0 }}><Text style={[s.eyebrow, small && { textAlign: 'left' }]}>BEYOND THE LAST PALACE GATE</Text><Text style={styles.roomTitle}>The Infinity World</Text><Text style={styles.companionTitle}>A sky of letters, wishes and voices. A little light left for anyone to find.</Text><TextAction label="Enter the Infinity World" onPress={onInfinity} /></View></View>}
+      {onInfinity && <View style={[styles.room, wide && { flex: 1 }, { backgroundColor: '#EAE5ED', borderColor: '#C2B1C5', flexDirection: small ? 'column' : 'row', alignItems: small ? 'stretch' : 'center', gap: 14 }]}>
+        <StoryIcon kind="star" size={small ? 24 : 44} color="#A48A57" />
+        <View style={{ flex: small ? undefined : 1, gap: 8, minWidth: 0 }}>
+          <Text style={[s.eyebrow, small && { textAlign: 'left' }]}>BEYOND THE LAST PALACE GATE</Text>
+          <Text style={styles.roomTitle}>The Infinity World</Text>
+          <Text style={styles.companionTitle}>A sky of letters, wishes and voices. A little light left for anyone to find.</Text>
+          <View style={{ alignSelf: 'flex-start', maxWidth: '100%', marginTop: 4 }}>
+            <RoyalNavButton label="Enter the Infinity World" icon="star" primary onPress={onInfinity} />
+          </View>
+        </View>
+      </View>}
         <View style={[styles.room, wide && { flex: 1 }]}>
           <View style={styles.roomHeading}><StoryIcon kind="moon" size={24} /><Text style={styles.soon}>THE FIRE IS READY</Text></View>
           <Text style={styles.roomTitle}>The Burning World</Text><Text style={s.body}>The Burning World is open. Seal a letter at your desk and let the fire carry it away.</Text>
