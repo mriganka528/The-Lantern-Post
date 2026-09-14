@@ -19,7 +19,15 @@ function fixture() {
   const draft = new DraftController('owner-a', storage); draft.load(); draft.choosePreset(preset); draft.edit(words); draft.seal();
   return { draft, storage, values, fail: (value: boolean) => { fail = value; } };
 }
-const transport = (overrides: Partial<DeliveryTransport> = {}): DeliveryTransport => ({ submit: async input => receipt(input.requestId, 'DELIVERED', input.recipientId), lookup: async () => ({ receipt: null }), cancel: async id => receipt(id, 'REJECTED'), capabilities: async () => ({ moderationAvailable: true }), ...overrides });
+const transport = (overrides: Partial<DeliveryTransport> = {}): DeliveryTransport => ({ submit: async input => receipt(input.requestId, 'DELIVERED', input.recipientId), lookup: async () => ({ receipt: null }), cancel: async id => receipt(id, 'REJECTED'), capabilities: async () => ({ textAvailable: true }), ...overrides });
+
+test('throttled delivery preserves its pending draft and allows durable cancellation without sending again', async () => {
+  const f = fixture(); let sends = 0;
+  const delivery = new DeliveryController(f.draft, transport({ submit: async () => { sends++; throw Object.assign(new Error('Wait'), { status: 429 }); } }), () => firstId);
+  await delivery.confirm(recipient); assert.equal(f.draft.getSnapshot().draft!.stage, 'delivery-pending'); assert.equal(f.draft.getSnapshot().draft!.text, words); assert.match(delivery.getSnapshot().error!, /minute/);
+  await delivery.check(); assert.equal(sends, 1); assert.equal(f.draft.reset(), false);
+  await delivery.cancel(); assert.equal(f.draft.getSnapshot().draft!.stage, 'sealed'); assert.equal(f.draft.getSnapshot().draft!.text, words); assert.equal(sends, 1);
+});
 
 test('the recipient and pending intent are saved before sending, and failed saves make no request', async () => {
   const f = fixture(); let calls = 0;
@@ -78,7 +86,7 @@ test('stale editors cannot retarget a pending letter, and late replies cannot er
 });
 test('version-2 drafts migrate to the delivery-capable format without losing sealed words or burn state', () => {
   const f = fixture(); const old = { ...f.draft.getSnapshot().draft!, version: 2 };
-  const restored = decodeDraft(JSON.stringify(old), 'owner-a'); assert.equal(restored.version, 3); assert.equal(restored.stage, 'sealed'); assert.equal(restored.text, words); assert.equal(restored.generationId, old.generationId);
+  const restored = decodeDraft(JSON.stringify(old), 'owner-a'); assert.equal(restored.version, 6); assert.equal(restored.stage, 'sealed'); assert.equal(restored.text, words); assert.equal(restored.generationId, old.generationId);
   const burning = decodeDraft(JSON.stringify({ ...old, stage: 'burn-pending', burnRequestId: firstId }), 'owner-a'); assert.equal(burning.stage, 'burn-pending'); assert.equal(burning.burnRequestId, firstId);
   assert.throws(() => decodeDraft(JSON.stringify({ ...old, stage: 'delivery-pending', deliveryRequestId: firstId, deliveryRecipient: recipient }), 'owner-a'));
 });

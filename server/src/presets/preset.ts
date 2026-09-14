@@ -10,10 +10,11 @@ export function serializePreset(row: { id: string; key: string; displayName: str
     typeof value.order !== 'number' || !Number.isInteger(value.order) || value.order < 0 || value.order > 100 ||
     colors.some(key => typeof value[key] !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(value[key])) ||
     typeof value.texture !== 'string' || !['parchment', 'linen', 'vellum'].includes(value.texture) ||
-    typeof value.motif !== 'string' || !['stars', 'floral', 'royal', 'postmark'].includes(value.motif) ||
+    typeof value.motif !== 'string' || !['stars', 'floral', 'royal', 'postmark', 'lace', 'peacock', 'rose-vine', 'celestial', 'regal', 'gilded'].includes(value.motif) ||
     typeof value.font !== 'string' || !['book', 'script', 'classic'].includes(value.font)) return null;
   return {
     id: row.id, key: row.key, displayName: row.displayName, description: value.description, order: value.order,
+    ...(value.collection === 'royal' ? { collection: 'royal' as const } : {}),
     config: {
       paperColor: value.paperColor as string, inkColor: value.inkColor as string,
       sealColor: value.sealColor as string, ribbonColor: value.ribbonColor as string,

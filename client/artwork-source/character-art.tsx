@@ -2,10 +2,12 @@ import { useId } from 'react';
 import type { CharacterKey } from '@lantern-post/shared-types';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Rect, Stop } from './svg-elements';
 import { palettes } from '../src/storybook/palettes';
+import { isRoyalCharacter, RoyalCharacterArt } from './royal-collection-art';
 
 // Original vector companions. The same artwork is used in the gallery and home.
 export function CharacterArt({ characterKey, size = 220 }: { characterKey: CharacterKey; size?: number }) {
   const id = useId().replace(/:/g, '');
+  if (isRoyalCharacter(characterKey)) return <RoyalCharacterArt characterKey={characterKey} size={size} />;
   const p = palettes[characterKey];
   const rabbit = characterKey === 'rabbit-moon';
   const fox = characterKey === 'fox-lantern';

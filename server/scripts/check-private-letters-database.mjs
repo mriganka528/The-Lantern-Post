@@ -6,11 +6,12 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { PrismaClient } = require('@prisma/client');
 const { FriendLettersService } = require('../dist/letters/friend-letters.service.js');
+const { VoiceAssetsService } = require('../dist/voice/voice-assets.service.js');
 const url = process.env.PRIVATE_LETTERS_TEST_DATABASE_URL;
 if (!url || !['localhost', '127.0.0.1', '::1', '[::1]', 'postgres'].includes(new URL(url).hostname)) throw new Error('Set PRIVATE_LETTERS_TEST_DATABASE_URL to an isolated local PostgreSQL database. This script never loads server/.env.');
 const prisma = new PrismaClient({ datasources: { db: { url } } });
 const users = []; let moderation = 'APPROVED'; let held = null; let reached = () => {};
-const service = new FriendLettersService(prisma, { available: true, check: async () => { reached(); if (held) await held; return moderation; } });
+const service = new FriendLettersService(prisma, { available: true, check: async () => { reached(); if (held) await held; return moderation; } }, new VoiceAssetsService(prisma, { available: false }));
 try {
   const character = await prisma.character.findFirst({ where: { isActive: true } }); const preset = await prisma.preset.findFirst({ where: { isActive: true } }); assert.ok(character && preset);
   const suffix = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -33,7 +34,11 @@ try {
   const cancelled = await service.cancel(alice.authProviderId, cancelBody.requestId, bob.id); release(); assert.deepEqual(await sending, cancelled); assert.equal(cancelled.reason, 'CANCELLED'); held = null;
   await assert.rejects(prisma.deliveryReceipt.create({ data: { id: `invalid_${suffix}`, ownerId: alice.id, recipientId: bob.id, outcome: 'REJECTED', reason: null } }));
   await assert.rejects(prisma.letter.create({ data: { senderId: alice.id, recipientId: bob.id, type: 'TEXT', destinationType: 'FRIEND', status: 'DELIVERED', textContent: 'Synthetic unapproved content', moderationPassed: false } }));
-  await service.remove(bob.authProviderId, results[0].letterId); const deleted = await prisma.letter.findUniqueOrThrow({ where: { id: results[0].letterId } });
+  const savedLetter = await prisma.letter.findUniqueOrThrow({ where: { id: results[0].letterId } });
+  const unreviewed = await prisma.letter.create({ data: { ...savedLetter, id: 'unreviewed_' + randomUUID(), moderationPassed: null, moderationCheckedAt: null, moderationSkipped: true } });
+  assert.equal((await service.open(bob.authProviderId, unreviewed.id)).textContent, body.textContent);
+  await assert.rejects(prisma.letter.create({ data: { ...savedLetter, id: 'invalid_' + randomUUID(), moderationSkipped: true } }));
+  await service.remove(bob.authProviderId, results[0].letterId); assert.equal((await service.open(alice.authProviderId,results[0].letterId)).textContent,body.textContent); await service.remove(alice.authProviderId,results[0].letterId); const deleted = await prisma.letter.findUniqueOrThrow({ where: { id: results[0].letterId } });
   assert.equal(deleted.textContent, null); assert.equal(deleted.stationeryJson, null); assert.deepEqual(await service.send(alice.authProviderId, body), results[0]);
   const newer = await service.send(alice.authProviderId, { ...body, requestId: randomUUID() });
   await prisma.block.create({ data: { blockerId: bob.id, blockedId: alice.id } });

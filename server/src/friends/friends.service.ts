@@ -1,15 +1,19 @@
+import { PalaceEvents } from '../realtime/palace-events';
+import { Optional } from '@nestjs/common';
+import { activeAccount } from '../account/account-access';
 import { ConflictException, HttpException, HttpStatus, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { FriendConnection, FriendSearchResponse, FriendSummary, FriendsPage, FriendsView } from '@lantern-post/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import { connection, connectionSelect, nextCursor, notBlocked, pageBoundary, person, personSelect, relationship, visibleConnections } from './friend-contract';
+import { consumeRequestWindow } from '../safety/request-limits';
 
 @Injectable()
 export class FriendsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private events?: PalaceEvents) {}
 
   private async owner(authProviderId: string) {
-    const row = await this.prisma.user.findUnique({ where: { authProviderId }, select: { id: true, characterId: true } });
+    const row = await this.prisma.user.findUnique({ where: { authProviderId, accountState: 'ACTIVE' }, select: { id: true, characterId: true } });
     if (!row) throw new ConflictException({ code: 'PROFILE_REQUIRED', message: 'Choose a username first.' });
     if (!row.characterId) throw new ConflictException({ code: 'CHARACTER_REQUIRED', message: 'Choose a companion first.' });
     return row;
@@ -60,7 +64,8 @@ export class FriendsService {
   }
   async send(authProviderId: string, username: string): Promise<FriendConnection> {
     const owner = await this.owner(authProviderId);
-    return this.transaction(async tx => {
+    const result = await this.transaction(async tx => {
+      await activeAccount(tx, owner.id);
       const target = await tx.user.findFirst({ where: { username, ...notBlocked(owner.id), characterId: { not: null } }, select: { id: true } });
       if (!target || target.id === owner.id) throw new NotFoundException({ code: 'FRIEND_UNAVAILABLE', message: 'This palace is unavailable for invitations.' });
       const existing = await tx.friendRequest.findFirst({ where: { OR: [{ fromUserId: owner.id, toUserId: target.id }, { fromUserId: target.id, toUserId: owner.id }] }, select: connectionSelect });
@@ -73,25 +78,32 @@ export class FriendsService {
       }
       const recent = await tx.friendRequest.count({ where: { fromUserId: owner.id, createdAt: { gte: new Date(Date.now() - 86_400_000) } } });
       if (recent >= 20) throw new HttpException({ code: 'INVITATION_LIMIT', message: 'Please wait before sending more invitations.' }, HttpStatus.TOO_MANY_REQUESTS);
+      // Blocks/unblocks and renewed invitations must not reset the daily
+      // budget by deleting the old friendship row. Commit it with the outbox.
+      try { await consumeRequestWindow(tx, owner.id, { scope: 'friend-invitation-day', maximum: 20, milliseconds: 86_400_000 }, Date.now(), recent); }
+      catch (error) { if (error instanceof HttpException && error.getStatus() === 429) throw new HttpException({ code: 'INVITATION_LIMIT', message: 'Please wait before sending more invitations.' }, HttpStatus.TOO_MANY_REQUESTS); throw error; }
       // A new ID after the cooldown prevents a late response from an old tab
       // accepting a different invitation. Old declined outbox rows cascade.
       if (existing) await tx.friendRequest.delete({ where: { id: existing.id } });
       const row = await tx.friendRequest.create({ data: { fromUserId: owner.id, toUserId: target.id }, select: connectionSelect });
+      await this.events?.append(tx,[{ownerId:owner.id,kind:'FRIENDS_CHANGED',peerId:target.id,itemId:row.id},{id:row.id+':received',ownerId:target.id,kind:'FRIEND_REQUEST',peerId:owner.id,itemId:row.id}]);
       await tx.friendNotification.create({ data: { id: `${row.id}:received`, userId: target.id, requestId: row.id, kind: 'FRIEND_REQUEST' } });
       return connection(row, owner.id);
-    });
+    }); this.events?.notify([owner.id,result.person.id]);return result;
   }
   async respond(authProviderId: string, id: string, action: 'accept' | 'decline'): Promise<FriendConnection> {
     const owner = await this.owner(authProviderId);
-    return this.transaction(async tx => {
+    const result = await this.transaction(async tx => {
+      await activeAccount(tx, owner.id);
       const row = await tx.friendRequest.findFirst({ where: { AND: [visibleConnections(owner.id), { id, toUserId: owner.id }] }, select: connectionSelect });
       if (!row) throw new NotFoundException({ code: 'INVITATION_MISSING', message: 'This invitation is no longer available.' });
       const status = action === 'accept' ? 'ACCEPTED' : 'DECLINED';
       if (row.status === status) return connection(row, owner.id);
       if (row.status !== 'PENDING') throw new ConflictException({ code: 'INVITATION_RESOLVED', message: 'This invitation was already answered. Refresh to see it.' });
       const updated = await tx.friendRequest.update({ where: { id: row.id }, data: { status, respondedAt: new Date() }, select: connectionSelect });
+      await this.events?.append(tx,[{ownerId:owner.id,kind:'FRIENDS_CHANGED',peerId:row.fromUserId,itemId:row.id},{...(status==='ACCEPTED'?{id:row.id+':accepted'}:{}),ownerId:row.fromUserId,kind:status==='ACCEPTED'?'FRIEND_ACCEPTED':'FRIENDS_CHANGED',peerId:owner.id,itemId:row.id}]);
       if (status === 'ACCEPTED') await tx.friendNotification.create({ data: { id: `${row.id}:accepted`, userId: row.fromUserId, requestId: row.id, kind: 'FRIEND_ACCEPTED' } });
       return connection(updated, owner.id);
-    });
+    }); this.events?.notify([owner.id,result.person.id]);return result;
   }
 }

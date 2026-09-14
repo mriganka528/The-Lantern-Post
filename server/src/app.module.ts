@@ -9,6 +9,11 @@ import { PresetsModule } from './presets/presets.module';
 import { LettersModule } from './letters/letters.module';
 import { FriendsModule } from './friends/friends.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { SafetyModule } from './safety/safety.module';
+import { RetentionModule } from './retention/retention.module';
+import { DiagnosticsModule } from './diagnostics/diagnostics.module';
+import { ChatModule } from './chat/chat.module';
+import { AccountModule } from './account/account.module';
 
 @Module({
   imports: [
@@ -25,6 +30,11 @@ import { NotificationsModule } from './notifications/notifications.module';
     LettersModule,
     FriendsModule,
     NotificationsModule,
+    SafetyModule,
+    RetentionModule,
+    DiagnosticsModule,
+    ChatModule,
+    AccountModule,
   ],
 })
 export class AppModule {}

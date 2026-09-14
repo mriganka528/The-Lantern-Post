@@ -23,13 +23,13 @@ export function WalkingCompanion({ characterKey, stage, reduced, onArrival }: { 
     return () => { walk.stop(); gait.stop(); };
   }, [native, onArrival, path, reduced, stage, step]);
   const art = walkingArtwork[characterKey];
-  return <Animated.View testID="palace-companion-path" pointerEvents="none" style={[styles.actor, {
+  return <Animated.View testID="palace-companion-path"  style={[[styles.actor, {
     transform: [
       { translateX: path.interpolate({ inputRange: [0, .3, .7, 1], outputRange: [530, 525, 518, 515] }) },
       { translateY: path.interpolate({ inputRange: [0, .3, .7, 1], outputRange: [510, 456, 396, 365] }) },
       { scale: path.interpolate({ inputRange: [0, 1], outputRange: [1, .62] }) },
     ],
-  }]}>
+  }], { pointerEvents: "none" }]}>
     <View style={styles.shadow} />
     <Animated.View style={[StyleSheet.absoluteFill, { opacity: path.interpolate({ inputRange: [0, .94, 1], outputRange: [1, 1, 0] }) }]}>
       <Animated.Image testID="companion-left-step" source={art.left} style={[styles.part, { transformOrigin: '60px 142px', transform: [{ translateY: step.interpolate({ inputRange: [0, 1], outputRange: [0, -9] }) }, { rotate: step.interpolate({ inputRange: [0, 1], outputRange: ['-8deg', '8deg'] }) }] }]} resizeMode="contain" />

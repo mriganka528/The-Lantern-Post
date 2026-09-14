@@ -1,6 +1,8 @@
 # Tech Stack
 ## Lantern Post
 
+Current audio implementation: **expo-audio 57.0.5** on native, browser **MediaRecorder / HTMLAudioElement**, IndexedDB for browser clips and Expo FileSystem for native clips. Server-side private S3-compatible signing uses Node crypto. Live storage/moderation credentials and device builds remain deferred; see `16_PHASE_7_HANDOFF.md`.
+
 | Layer | Choice | Why |
 |---|---|---|
 | Mobile framework | **Expo (React Native)**, Expo Router, EAS Build | Your requirement — multi-OS, managed workflow, OTA updates, wide OS-version support |

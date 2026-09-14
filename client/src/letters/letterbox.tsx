@@ -9,13 +9,15 @@ import { EnvelopeArt } from './envelope-art';
 import { LetterReader } from './letter-reader';
 import type { LetterBoxTransport } from './friend-letter-api';
 import { letterboxKey, useLetterbox, useLetterboxSummary } from './use-letterbox';
+import { voiceTime } from '../voice/voice-contract';
+import type { SafetyTransport } from '../safety/safety-api';
 
-export function PalaceLetterbox({ ownerId, api, onBack, onWrite, onReply }: { ownerId: string; api: LetterBoxTransport; onBack: () => void; onWrite: () => void; onReply?: (person: FriendPerson) => void }) {
+export function PalaceLetterbox({ ownerId, api, onBack, onWrite, onReply, safety }: { ownerId: string; api: LetterBoxTransport; onBack: () => void; onWrite: () => void; onReply?: (person: FriendPerson) => void; safety?: SafetyTransport }) {
   const [box, setBox] = useState<LetterBox>('received'); const [selected, setSelected] = useState<LetterEnvelope | null>(null);
   const list = useLetterbox(api, ownerId, box); const summary = useLetterboxSummary(api, ownerId); const cache = useQueryClient();
   const changed = () => { void cache.invalidateQueries({ queryKey: letterboxKey(ownerId) }); };
   const letters = list.data?.pages.flatMap(page => page.letters) ?? [];
-  if (selected) return <LetterReader key={selected.id} item={selected} api={api} onChanged={changed} onBack={() => setSelected(null)} onReply={onReply} />;
+  if (selected) return <LetterReader key={selected.id} ownerId={ownerId} safety={safety} item={selected} api={api} onChanged={changed} onBack={() => setSelected(null)} onReply={onReply} />;
   return <StoryShell chapter="THE PALACE LETTERBOX" actions={<TextAction label="My palace" onPress={onBack} />}>
     <StoryHeading eyebrow="BENEATH THE OLD PALACE DOORS" title="Letters at your gate." subtitle="A quiet place for words carried between friends. Open an envelope when you are ready." />
     <View style={styles.crest}><StoryIcon kind="gate" size={49} /><View style={{ flex: 1 }}><Text style={styles.crestTitle}>The private correspondence</Text><Text style={styles.small}>{summary.data?.unread ? `${summary.data.unread} unopened letter${summary.data.unread === 1 ? '' : 's'} waiting` : 'Kept between your two palaces'}</Text></View></View>
@@ -27,6 +29,7 @@ export function PalaceLetterbox({ ownerId, api, onBack, onWrite, onReply }: { ow
         <View style={styles.cardTop}><Text style={styles.stamp}>{box === 'received' && !item.readAt ? 'UNOPENED' : 'PALACE POST'}</Text><Text style={styles.date}>{new Date(item.deliveredAt).toLocaleDateString()}</Text></View>
         <View style={{ alignItems: 'center', marginVertical: 19 }}><EnvelopeArt preset={item.preset} width={205} /></View>
         <Text style={styles.person}>{box === 'received' ? 'From' : 'To'} @{item.person.username}</Text><Text style={styles.small}>{item.person.character?.palace.name ?? 'A friend’s palace'}</Text>
+        {item.type === 'VOICE' && <Text style={styles.small}>Voice letter · {voiceTime(item.audioDurationMs ?? 0)}</Text>}
       </Pressable>)}
     </View>}
     {list.hasNextPage && <View style={styles.more}><TextAction label={list.isFetchingNextPage ? 'Turning the page…' : 'More letters'} onPress={() => { void list.fetchNextPage(); }} disabled={list.isFetchingNextPage} /></View>}

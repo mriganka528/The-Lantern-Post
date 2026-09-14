@@ -1,0 +1,17 @@
+import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, Rect, Stop } from './svg-elements';
+export function DestinationArt({ kind }: { kind: 'infinity' | 'friend' | 'fire' }) {
+  const sky = kind === 'infinity' ? '#D6CFDF' : kind === 'friend' ? '#CAD9C7' : '#C5AFA4';
+  const roof = kind === 'infinity' ? '#8D7C9D' : kind === 'friend' ? '#708977' : '#855B4F';
+  return <Svg width={320} height={240} viewBox="0 0 320 240"><Defs><LinearGradient id={'sky-' + kind} x2="0" y2="1"><Stop stopColor={sky} /><Stop offset="1" stopColor="#F6EAD2" /></LinearGradient></Defs>
+    <Rect width="320" height="240" fill={'url(#sky-' + kind + ')'} /><Circle cx="160" cy="107" r="89" fill="#FFF5D7" opacity=".38" /><Circle cx="160" cy="107" r="82" fill="none" stroke="#B49A64" opacity=".55" />
+    <G fill="#FFF6DF" opacity=".8"><Path d="M-12 151c24-32 53-25 70-6 32-25 61-20 79 4l-5 26H-12zM195 167c22-42 56-34 73-15 20-31 53-28 66-5v44H195z" /></G>
+    <G stroke="#A18657" strokeWidth="1.2" strokeLinejoin="round">
+      <Path d="M98 203V88c0-82 124-82 124 0v115" fill="#D1BD94" /><Path d="M106 200V88c0-71 108-71 108 0v112" fill="#F4E6C9" /><Path d="M119 197V90c0-55 82-55 82 0v107" fill={sky} />
+      <Path d="M93 92h20v112H93zm114 0h20v112h-20zM87 87h32v9H87zm114 0h32v9h-32z" fill="#EBD8AE" />
+      <Path d="m135 36-5-18 19 9 11-19 11 19 19-9-5 18z" fill="#CAB079" /><Circle cx="160" cy="6" r="2" fill="#E6CE8B" />
+      {kind === 'friend' ? <><Path d="M121 196V91q39-54 78 0v105z" fill="#7B927D" /><Path d="M160 65v131m-30-84v70h23V91m14 0v91h24v-70" fill="none" stroke="#D7C493" /><Circle cx="154" cy="143" r="3" fill="#DFC58C" /><Circle cx="166" cy="143" r="3" fill="#DFC58C" />{[82, 233].map((x, n) => <G key={x}><Path d={'M' + x + ' 198q-12-44 0-86t0-59'} fill="none" stroke="#7E9470" strokeWidth="3" />{[0, 1, 2, 3].map(i => <G key={i} transform={'translate(' + (x + (i % 2 ? 7 : -7)) + ' ' + (76 + i * 32) + ')'}><Ellipse rx="11" ry="4" fill="#A5B697" transform={'rotate(' + (n ? -30 : 30) + ')'} /><Circle r="6" fill="#C99B99" stroke="#AF7C74" /><Circle r="2" fill="#F4DDB0" /></G>)}</G>)}</> : kind === 'infinity' ? <><Path d="M174 68a24 24 0 1 1-25-26c-3 17 8 28 25 26" fill="#FFF8DE" /><Path d="m137 176 23-36 23 36z" fill={roof} /><Path d="M143 177h34v20h-34z" fill="#F4E8CA" />{[[143, 98], [178, 119], [160, 139]].map(([x, y]) => <Path key={x} d={'m' + x + ' ' + (y! - 7) + ' 2 5 5 2-5 2-2 5-2-5-5-2 5-2z'} fill="#FFF7D7" />)}</> : <><Path d="M130 195c-19-28 0-38 3-67 10 23 16 18 17-2 1-22 13-38 17-48 11 22 13 29 10 47 14-11 14-17 15-23 19 33 19 71-2 93z" fill="#C5844B" /><Path d="M147 192c-12-23 4-33 5-47 10 17 9 15 13 4 4-10 9-17 10-24 17 26 16 42 1 67z" fill="#F0BF70" /><Path d="M155 193c-5-14 7-18 9-30 8 11 12 21 3 30" fill="#FFF1BD" /><Path d="m132 109-4-17 17 7 11-17 10 17 18-7-3 17z" fill="#CDB171" /></>}
+      <Path d="M82 204h156l-8 10H90zM75 214h170l-10 10H85z" fill="#E7D6B2" />
+      {[45, 261].map((x, i) => <G key={x}><Path d={'M' + x + ' 180v-47l7-10h14l7 10v47z'} fill="#E4D5B5" /><Path d={'m' + (x - 4) + ' 133 18-36 18 36z'} fill={roof} /><Path d={'M' + (x + 10) + ' 176v-22q4-8 8 0v22'} fill={sky} /><Path d={'m' + (x - 9) + ' 185 45 0-12 9-22 0z'} fill="#D3BD90" />{kind === 'infinity' && <Path d={'M' + (x + 9) + ' 194q-4 20 ' + (i ? '-7' : '7') + ' 41'} fill="none" stroke="#ADCDC8" strokeWidth="6" />}</G>)}
+    </G><G fill="none" stroke="#B7A174" opacity=".4"><Path d="M11 15h82m134 0h82M11 15v210h61m176 0h61V15" /></G>
+  </Svg>;
+}

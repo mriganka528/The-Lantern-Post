@@ -21,7 +21,7 @@ export function Flourish({ width = 180, color = gold }: { width?: number; color?
   </Svg>;
 }
 
-export function StoryIcon({ kind, size = 24, color = gold }: { kind: 'star' | 'key' | 'letter' | 'gate' | 'moon' | 'arrow' | 'close'; size?: number; color?: string }) {
+export function StoryIcon({ kind, size = 24, color = gold }: { kind: 'star' | 'key' | 'letter' | 'gate' | 'moon' | 'arrow' | 'close' | 'bell'; size?: number; color?: string }) {
   return <Svg width={size} height={size} viewBox="0 0 32 32" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
     <G fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       {kind === 'star' && <Path d="m16 2 3.5 10.5L30 16l-10.5 3.5L16 30l-3.5-10.5L2 16l10.5-3.5z" />}
@@ -31,6 +31,7 @@ export function StoryIcon({ kind, size = 24, color = gold }: { kind: 'star' | 'k
       {kind === 'moon' && <><Path d="M24 23A12 12 0 1 1 15 3a10 10 0 0 0 9 20z" /><Path d="m25 4 1 3 3 1-3 1-1 3-1-3-3-1 3-1z" /></>}
       {kind === 'arrow' && <Path d="M5 16h22m-7-7 7 7-7 7" />}
       {kind === 'close' && <Path d="m8 8 16 16M24 8 8 24" />}
+      {kind === 'bell' && <><Path d="M13 6V4a3 3 0 0 1 6 0v2M7 21c3-3 1-10 5-13 2-2 6-2 8 0 4 3 2 10 5 13l2 3H5zM7 26h18M12 27a4 4 0 0 0 8 0M10 20h12M12 11q4-3 8 0" /><Path d="m16 13 1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill={color} opacity=".55" /></>}
     </G>
   </Svg>;
 }

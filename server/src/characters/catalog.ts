@@ -34,6 +34,10 @@ export const characterStories = {
     description: 'A graceful friend who carries your words as softly as a feather on the evening breeze.',
     palace: { theme: 'cloud-court', name: 'The Cloud Palace', description: 'Pearl-white towers floating above a sea of clouds, where the world feels wonderfully still.' },
   },
+  'unicorn-aurelia': { collection: 'royal', title: 'The keeper of opal wishes', description: 'An ivory unicorn in a pearl-embroidered mantle, carrying a gilded star wand and the wishes you dare to keep.', palace: { theme: 'opal-citadel', name: 'The Opal Citadel', description: 'Opalescent arches, pearl garlands and moonlit gardens around a palace of gentle wishes.' } },
+  'peacock-seraph': { collection: 'royal', title: 'The herald of sapphire skies', description: 'A regal peacock with a jeweled fan, a velvet court coat and a little sealed treasure for every journey.', palace: { theme: 'sapphire-pavilion', name: 'The Sapphire Pavilion', description: 'Sapphire glass, feathered rosettes and gilded colonnades mirrored in quiet green water.' } },
+  'lion-solstice': { collection: 'royal', title: 'The guardian of golden mornings', description: 'A kind lion with a sunlit mane, an antique crown and a warm velvet cloak stitched with tiny constellations.', palace: { theme: 'suncrest-court', name: 'The Suncrest Palace', description: 'Crowned towers, sunburst windows and a golden courtyard where every morning feels like a beginning.' } },
+  'dragon-jade': { collection: 'royal', title: 'The dreamer of emerald clouds', description: 'A gentle jade dragon with moon-shaped horns, silk wings and a lantern full of emerald dreams.', palace: { theme: 'jade-sanctuary', name: 'The Jade Sanctuary', description: 'Emerald roofs, hanging lanterns and sweeping gold tracery above a river of cloud reflections.' } },
 } as const satisfies Record<CharacterKey, CharacterStory>;
 
 export const characterKeys = Object.keys(characterStories) as CharacterKey[];

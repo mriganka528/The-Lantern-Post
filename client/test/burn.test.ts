@@ -21,6 +21,13 @@ function fixture() {
 }
 function transport(submit: BurnTransport['submit'], lookup: BurnTransport['lookup'] = async () => ({ receipt: null })): BurnTransport { return { submit, lookup }; }
 
+test('throttled burns preserve their pending content and recover through receipt lookup', async () => {
+  const f = fixture(); let sends = 0;
+  const burn = new BurnController(f.draft, transport(async () => { sends++; throw Object.assign(new Error('Wait'), { status: 429 }); }, async () => ({ receipt: receipt() })), () => requestId);
+  await burn.confirm(); assert.equal(f.draft.getSnapshot().draft!.stage, 'burn-pending'); assert.equal(f.draft.getSnapshot().draft!.text, words); assert.match(burn.getSnapshot().error!, /minute/); assert.equal(f.draft.reset(), false);
+  await burn.check(); assert.equal(sends, 1); assert.equal(f.draft.getSnapshot().draft!.stage, 'burned'); assert.equal(f.draft.getSnapshot().draft!.text, '');
+});
+
 test('burn preparation must be persisted before a request can leave the device', async () => {
   const f = fixture(); let calls = 0;
   const burn = new BurnController(f.draft, transport(async () => { calls++; return receipt(); }), () => requestId);
@@ -145,5 +152,5 @@ test('legacy Phase 3 drafts migrate without losing their words or stationery', (
   const raw = { version: 1, ownerId: 'owner-a', text: words, preset, stage: 'sealed', updatedAt: '2026-09-12T00:00:00Z', sealedAt: '2026-09-12T00:00:00Z' };
   const first = decodeDraft(JSON.stringify(raw), 'owner-a');
   const second = decodeDraft(JSON.stringify(raw), 'owner-a');
-  assert.equal(first.version, 3); assert.equal(first.text, words); assert.equal(first.generationId, second.generationId); assert.equal(first.burnRequestId, null);
+  assert.equal(first.version, 6); assert.equal(first.text, words); assert.equal(first.generationId, second.generationId); assert.equal(first.burnRequestId, null);
 });

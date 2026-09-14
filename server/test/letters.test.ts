@@ -1,3 +1,4 @@
+import { AccountAccess } from '../src/account/account-access';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,9 @@ import { ClerkTokenVerifier } from '../src/auth/clerk-token-verifier.service';
 import { PrismaService } from '../src/database/prisma.service';
 import { configureApp } from '../src/configure-app';
 import { validateEnvironment } from '../src/config/environment';
+import { RequestLimits } from '../src/safety/request-limits';
+import { friendsFixture } from './friends-fixture';
+const budgetFixture = friendsFixture();
 
 type ReceiptRow = { id: string; ownerId: string; outcome: 'BURNED' | 'REJECTED'; reason: string | null; letterId: string | null; createdAt: Date };
 let receipts = new Map<string, ReceiptRow>();
@@ -37,6 +41,7 @@ const database = {
 };
 function transactionModels(r: Map<string, ReceiptRow>, l: Map<string, Record<string, unknown>>) {
   return {
+    user: {findFirst: async () => ({id:'active-test-user'})},
     preset: { findUnique: async ({ where }: { where: { id: string } }) => where.id === 'preset_lantern' ? { id: where.id, key: 'lantern-parchment', displayName: 'Lantern parchment', configJson, isActive: active } : null },
     letter: { create: async ({ data }: { data: Record<string, unknown> & { id: string } }) => {
       writes.push(data); if (l.has(data.id)) throw conflict(); l.set(data.id, data); return { id: data.id };
@@ -50,14 +55,16 @@ function transactionModels(r: Map<string, ReceiptRow>, l: Map<string, Record<str
 let app: INestApplication; let url: string;
 before(async () => {
   const module = await Test.createTestingModule({ imports: [LettersModule] })
+    .overrideProvider(AccountAccess).useValue({assertSubject: async () => {}})
     .overrideProvider(ConfigService).useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: 'postgresql://localhost:5432/test' })))
     .overrideProvider(PrismaService).useValue(database)
+    .overrideProvider(RequestLimits).useValue(new RequestLimits(budgetFixture.database as unknown as PrismaService))
     .overrideProvider(ClerkTokenVerifier).useValue({ verify: async (token: string) => {
       if (!['alice', 'bob', 'new-user', 'no-character'].includes(token)) throw new UnauthorizedException(); return { subject: token, sessionId: `session-${token}` };
     } }).compile();
   app = module.createNestApplication({ logger: false }); configureApp(app); await app.listen(0, '127.0.0.1'); url = await app.getUrl();
 });
-beforeEach(() => { receipts.clear(); letters.clear(); writes.length = 0; calls = 0; active = true; failReceipt = false; });
+beforeEach(() => { budgetFixture.reset(); receipts.clear(); letters.clear(); writes.length = 0; calls = 0; active = true; failReceipt = false; });
 after(async () => { await app?.close(); });
 const body = (): BurnLetterRequest => ({ requestId: randomUUID(), type: 'TEXT', destinationType: 'BURNING', textContent: 'Synthetic private words that must never persist.', presetId: 'preset_lantern', burnConfirmed: true });
 const send = (input: unknown, token = 'alice') => fetch(`${url}/letters`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(input) });

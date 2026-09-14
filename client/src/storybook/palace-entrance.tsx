@@ -1,3 +1,4 @@
+import { useBlockingPalaceModal } from '../realtime/palace-live-state';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { CharacterDetails } from '@lantern-post/shared-types';
@@ -8,6 +9,7 @@ import { gold, line, palettes, paper, serif } from './theme';
 import { useReducedMotion } from './use-reduced-motion';
 
 export function PalaceEntrance({ character, onComplete }: { character: CharacterDetails; onComplete: (walk: boolean) => void }) {
+  useBlockingPalaceModal();
   const reduced = useReducedMotion();
   const { width, height } = useWindowDimensions();
   const [progress] = useState(() => new Animated.Value(0));

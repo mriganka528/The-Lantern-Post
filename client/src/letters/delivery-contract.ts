@@ -1,6 +1,7 @@
 import type { DeliveryReceipt, DeliveryRejection, LetterRecipient } from '@lantern-post/shared-types';
-const rejections: DeliveryRejection[] = ['FRIEND_UNAVAILABLE', 'PRESET_UNAVAILABLE', 'CONTENT_NOT_ALLOWED', 'DELIVERY_LIMIT', 'CANCELLED'];
-const characterKeys = ['fox-lantern', 'rabbit-moon', 'owl-scholar', 'deer-dawn', 'cat-astral', 'swan-cloud'];
+import { CHARACTER_KEYS } from '../storybook/character-keys';
+const rejections: DeliveryRejection[] = ['FRIEND_UNAVAILABLE', 'PRESET_UNAVAILABLE', 'CONTENT_NOT_ALLOWED', 'DELIVERY_LIMIT', 'VOICE_UNAVAILABLE', 'CANCELLED'];
+const characterKeys: readonly string[] = CHARACTER_KEYS;
 export function cleanRecipient(value: unknown): LetterRecipient | null {
   if (!value || typeof value !== 'object') return null;
   const r = value as Record<string, unknown>;
@@ -19,7 +20,8 @@ export function readDeliveryReceipt(value: unknown, requestId: string, recipient
 export function deliveryRejectionMessage(reason: DeliveryRejection | null): string {
   if (reason === 'FRIEND_UNAVAILABLE') return 'That friendship gate is unavailable. Your letter is kept here; refresh your friends before choosing a gate.';
   if (reason === 'PRESET_UNAVAILABLE') return 'That stationery is unavailable. Your letter is kept here; choose another style.';
-  if (reason === 'CONTENT_NOT_ALLOWED') return 'This letter could not be delivered as written. Its words are kept here for you to revise.';
+  if (reason === 'CONTENT_NOT_ALLOWED') return 'This letter could not be delivered. It is kept here for you to revise or record again.';
   if (reason === 'DELIVERY_LIMIT') return 'The palace post has carried enough letters for today. Your letter is kept here for another day.';
+  if (reason === 'VOICE_UNAVAILABLE') return 'That recording could not be delivered. It is kept on this device; reopen the envelope to check it or record again.';
   return 'The delivery was cancelled. Your sealed letter is still here with you.';
 }

@@ -1,3 +1,4 @@
+import { AccountAccess } from '../src/account/account-access';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
@@ -21,6 +22,7 @@ let calls = 0;
 let outage = false;
 before(async () => {
   const module = await Test.createTestingModule({ imports: [PresetsModule] })
+    .overrideProvider(AccountAccess).useValue({assertSubject: async () => {}})
     .overrideProvider(ConfigService).useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: 'postgresql://localhost:5432/test' })))
     .overrideProvider(ClerkTokenVerifier).useValue({ verify: async (token: string) => {
       if (token !== 'valid-fixture') throw new UnauthorizedException();

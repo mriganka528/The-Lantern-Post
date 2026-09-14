@@ -9,18 +9,21 @@ import { createFriendsTransport } from '../src/friends/friends-api';
 import { FriendsHall } from '../src/friends/friends-hall';
 import { friendsKey } from '../src/friends/use-friends-data';
 import { NotificationSettings } from '../src/notifications/notification-settings';
+import { createSafetyTransport } from '../src/safety/safety-api';
 
 export default function FriendsScreen() {
   const profile = useSelfProfile(); const router = useRouter(); const cache = useQueryClient();
   const getToken = useSessionToken(); const api = useMemo(() => createFriendsTransport(getToken), [getToken]);
+  const safety = useMemo(() => createSafetyTransport(getToken), [getToken]);
   const ownerId = profile.data?.user?.id ?? '';
   useFocusEffect(useCallback(() => { if (ownerId) void cache.invalidateQueries({ queryKey: friendsKey(ownerId) }); }, [cache, ownerId]));
   if (profile.isPending) return <LoadingScreen />;
   if (profile.isError) return <ProfileErrorScreen error={profile.error} onRetry={() => { void profile.refetch(); }} />;
   if (!profile.data.user) return <Redirect href="/choose-username" />;
   if (!profile.data.user.characterId) return <Redirect href="/choose-character" />;
-  return <FriendsHall key={ownerId} ownerId={ownerId} username={profile.data.user.username} api={api}
+  return <FriendsHall key={ownerId} ownerId={ownerId} username={profile.data.user.username} api={api} safety={safety}
     onWrite={person => router.push({ pathname: '/writing-desk', params: { recipient: person.id } })}
+    onChat={person => router.push({ pathname: '/chat', params: { friend: person.id } })}
     notifications={<NotificationSettings ownerId={ownerId} getToken={getToken} />}
     onBack={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }} />;
 }

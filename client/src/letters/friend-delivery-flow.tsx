@@ -27,7 +27,7 @@ export function FriendDeliveryFlow({ draft, saved, busy, error, api, friends, co
       {busy && <ActivityIndicator color="#997B44" />}{error && <Text role="alert" style={styles.error}>{error}</Text>}
       {draft.stage === 'delivered' ? <StoryButton label="Finish saving this delivery" onPress={onCleanup} /> : <>
         <StoryButton label={busy ? 'Checking the reply…' : 'Retry this delivery'} busy={busy} onPress={onRetry} />
-        <TextAction label="Check delivery status" onPress={onCheck} disabled={busy} /><TextAction label="Cancel delivery and keep my letter" onPress={onCancel} disabled={busy} />
+        <TextAction label="Check delivery status" onPress={onCheck} disabled={busy} /><TextAction label="Cancel delivery and keep my letter" onPress={onCancel} disabled={busy} /><Text style={s.body}>We’ll recheck this confirmed letter while the desk is open and you are connected.</Text>
       </>}
     </View>
   </StoryShell>;
@@ -40,6 +40,7 @@ function DestinationPicker({ ownerId, draft, saved, busy, error, api, friends, c
   const [selectedId, setSelectedId] = useState(initialRecipientId ?? ''); const [preview, setPreview] = useState(false);
   const people = list.data?.pages.flatMap(page => page.items.map(item => item.person)) ?? [];
   const selected = people.find(person => person.id === selectedId);
+  const canDeliver = draft.kind === 'VOICE' ? Boolean(capabilities.data?.voiceStorageAvailable && capabilities.data?.voiceAvailable && (!draft.voiceCaption || capabilities.data?.textAvailable)) : Boolean(capabilities.data?.textAvailable);
   if (preview && selected && draft.preset) return <DeliveryJourney preview recipient={target(selected)} preset={draft.preset} courier={courier} onFinish={() => setPreview(false)} />;
   return <StoryShell chapter="CHOOSE A FRIENDSHIP GATE" actions={<TextAction label="My sealed letter" onPress={onKeep} />}>
     <StoryHeading eyebrow="A PRIVATE PATH BETWEEN PALACES" title="Whose gate is this letter for?" subtitle="Choose one friend. Your name travels with this letter, and its words stay between your two palaces." />
@@ -52,8 +53,8 @@ function DestinationPicker({ ownerId, draft, saved, busy, error, api, friends, c
       <View style={styles.confirmation}>
         {selected ? <><Text style={styles.target}>For @{selected.username}</Text><Text style={s.body}>Only you and this friend can open the letter while your friendship is active. Send it when you are ready.</Text></> : <Text style={s.body}>Choose a gate above to address your envelope.</Text>}
         {error && <Text role="alert" style={styles.error}>{error}</Text>}
-        {!capabilities.data?.moderationAvailable && <View style={{ gap: 8 }}><Text style={styles.small}>Delivery is resting for now. You can preview the journey; your letter will stay here with you.</Text>{capabilities.isError && <TextAction label="Check the palace post again" onPress={() => { void capabilities.refetch(); }} />}</View>}
-        <StoryButton label={selected ? `Send my letter to ${selected.username}` : 'Choose a friendship gate'} onPress={() => { if (selected) onConfirm(target(selected)); }} disabled={!selected || !saved || busy || !capabilities.data?.moderationAvailable} />
+        {!canDeliver && <View style={{ gap: 8 }}><Text style={styles.small}>Delivery is resting for now. You can preview the journey; your letter will stay here with you.</Text><TextAction label="Check the palace post again" onPress={() => { void capabilities.refetch(); }} /></View>}
+        <StoryButton label={selected ? `Send my letter to ${selected.username}` : 'Choose a friendship gate'} onPress={() => { if (selected) onConfirm(target(selected)); }} disabled={!selected || !saved || busy || !canDeliver} />
         <StoryButton label="Preview the journey" onPress={() => setPreview(true)} disabled={!selected} secondary />
         <TextAction label="Keep my sealed letter" onPress={onKeep} />
       </View>

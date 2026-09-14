@@ -2,13 +2,17 @@
 
 Write it. Seal it. Let it go.
 
+Current active work: a continuously running HTTPS API for Android. The root `Dockerfile` builds the API from the repository root and runs it on port 3000; `.dockerignore` excludes credentials and mobile build artifacts. Northflank is the selected candidate, pending account creation and confirmation of a continuously running Free/no-card Sandbox service. Render Free is unsuitable because it can sleep. Supply server credentials only as runtime settings and check a deployed URL with `npm run check:hosted-api -- --url=https://YOUR-API-HOST`. Full local instructions are in [the public API handoff](Documentations/40_PUBLIC_API_DEPLOYMENT.md). The first Android setup is user-reported complete; automated moderation remains disabled.
+
 The Expo app and NestJS API defined in [Documentations](Documentations/README.md). The five specification documents remain the reference, with the user's subsequent choices recorded in the handoffs. The user has requested a browser preview and a simpler client/server layout.
 
-**Current work: Phase 6 — letters between friendship gates.** The private text-letter flow includes friend selection, a walking courier, palace letterbox, antique manuscript reading, replies and deletion. A labelled journey preview works without sending or changing the draft. The user has deferred Android builds, live push and live moderation while the in-app product is built. Actual delivery requires moderation approval; development tests use isolated providers. See [the Phase 6 handoff](Documentations/15_PHASE_6_HANDOFF.md) for verification and database setup. The lasting direction is [fairy tale, heavenly, vintage, and iconic](Documentations/09_ART_DIRECTION.md).
+**Current work: Phase 10 — Royal Collection and product hardening.** The Astral Palace keeps its living scenery without birds. Four new companions and six ornate stationery presets form the Royal Collection, free for everyone now. Infinity stars are smaller and sparkle on interaction. This phase also adds confirmed-letter reconnect recovery, optional written voice captions, local support resources, retention, opt-in diagnostics and brand/store assets. See [the Phase 10 handoff](Documentations/19_PHASE_10_HANDOFF.md).
+
+Live moderation, private object-storage credentials and Android/device setup remain unconfigured. Recording, local playback, burning and labelled journey previews work without those delivery integrations. Real friend delivery requires approval; isolated test services exercise the complete flow without a production bypass.
 
 The walking palace arrival, live scenery, antique writing desk and stationery, and zoomable Burning World with its fire guardian and eleven-second paper burn are preserved.
 
-Phase 6 adds private delivery receipts, stationery snapshots and letter notifications. Stop the API with **Ctrl+C**, regenerate Prisma, and apply pending migrations. Run from the repository root:
+Phase 10 adds the Royal catalogue, voice-caption fields and optional diagnostics. Stop the API with **Ctrl+C**, regenerate Prisma, and apply pending migrations. Run from the repository root:
 
 ```powershell
 # Terminal 1
@@ -52,7 +56,7 @@ scripts/                   Shared environment-file setup
 .github/workflows/ci.yml   Lint, types, API checks, migrations, mobile exports
 ```
 
-The mobile app remains in Expo's managed workflow. Authentication uses `@clerk/expo` with Expo SecureStore for its token cache. Email-code and redirect methods use Clerk's supported `/legacy` entry point; native Google uses `useSSO`. TanStack Query stores metadata per authenticated session, and Zustand holds temporary onboarding UI state. Bundled artwork and React Native Animated provide palace, sealing, burn and courier motion. Drafts use account-specific local files on native and localStorage on web. Burning World text is never persisted. Private friend letters require approval before persistence and current friendship/block checks on every read; the live moderator remains deliberately unconfigured. Public-world sending, audio, Redis and BullMQ remain in their planned phases.
+The mobile app remains in Expo's managed workflow. Authentication uses `@clerk/expo` with SecureStore; TanStack Query scopes metadata to each session. Bundled art and React Native Animated provide palace, sealing, burn and courier motion. Draft-v5 metadata uses local files/localStorage, with voice bytes in native files or IndexedDB. Expo Audio captures native AAC and MediaRecorder captures browser Opus/AAC. Burning audio is never uploaded. Friend/public letters use explicit confirmation and access checks before delivery; automated content review is disabled for the current release. The Infinity World fetches bounded marker pages and reveals a username only for signed letters. Live moderation, Redis/BullMQ workers and device setup remain deferred.
 
 ## Requirements
 
@@ -198,10 +202,12 @@ Endpoints:
 | `POST http://localhost:3000/users/me/character` | Save a companion and its server-selected palace using `{ "characterId": "char_fox_lantern" }` |
 | `GET http://localhost:3000/users/me/palace` | The authenticated owner's saved companion and palace |
 | `GET http://localhost:3000/presets` | Authenticated active stationery catalog, with validated paper/seal/ribbon settings |
-| `POST http://localhost:3000/letters` | Confirmed text-only Burning World release; returns an owner-scoped, content-free outcome |
+| `POST http://localhost:3000/letters` | Confirmed text/voice Burning World release; voice sends metadata only, and returns an owner-scoped, content-free outcome |
 | `POST http://localhost:3000/letters` with `destinationType: FRIEND` | Confirmed, moderated private delivery to a current friend; returns a durable receipt |
 | `GET http://localhost:3000/letters/burning/requests/:requestId` | Check the signed-in owner's release outcome after an interrupted reply |
-| `GET http://localhost:3000/letters/friends/capabilities` | Live moderation availability; currently false |
+| `GET http://localhost:3000/letters/friends/capabilities` | Separate text moderation, voice moderation and voice storage availability; currently false |
+| `POST http://localhost:3000/voice/uploads` | Reserve a bounded private voice upload for one owner/request/recipient |
+| `POST http://localhost:3000/voice/uploads/:assetId/finish` | Validate actual uploaded bytes and promote them to a sealed private object |
 | `GET http://localhost:3000/letters/friends/requests/:requestId` | Check your private delivery outcome |
 | `POST http://localhost:3000/letters/friends/requests/:requestId/cancel` | Durably cancel an unresolved delivery or recover its delivered outcome |
 | `GET http://localhost:3000/letters/friends?box=received` | Received/sent envelope metadata, without text |
@@ -211,6 +217,17 @@ Endpoints:
 | `GET http://localhost:3000/friends/search?username=moon` | Authenticated username-prefix search with safe social cards |
 | `GET http://localhost:3000/friends?view=friends` | The owner's friends, incoming, or outgoing invitations with pagination |
 | `GET http://localhost:3000/friends/summary` | The owner's friend and invitation counts |
+| `GET http://localhost:3000/safety/blocks` | Only the caller's closed gates, paginated |
+| `GET http://localhost:3000/infinity/stars` | Viewport-bounded public markers; no authors or content |
+| `GET http://localhost:3000/infinity/mine` | Only your own public markers |
+| `POST http://localhost:3000/infinity/stars/:id/open` | Approved public text/voice; opt-in username only |
+| `GET http://localhost:3000/infinity/requests/:requestId` | Owner-scoped public-sharing outcome |
+| `POST http://localhost:3000/infinity/requests/:requestId/cancel` | Durable public-sharing cancellation |
+| `POST http://localhost:3000/infinity/stars/:id/delete` | Confirmed owner-only public removal |
+| `POST http://localhost:3000/infinity/stars/:id/block` | Block a public author without exposing unsigned identity |
+| `POST http://localhost:3000/safety/blocks/:id` | Confirm a block and end friendship in both directions |
+| `POST http://localhost:3000/safety/blocks/:id/unblock` | Remove only the caller's block; no automatic friendship restore |
+| `POST http://localhost:3000/safety/letters/:id/report` | Save a recipient's report, optionally blocking its sender |
 | `POST http://localhost:3000/friends/requests` | Send an invitation by username, reusing existing requests on retry |
 | `POST http://localhost:3000/friends/requests/:id/respond` | Recipient-only accept or decline |
 | `GET http://localhost:3000/notifications/settings` | Whether native device registration is enabled |
@@ -257,7 +274,9 @@ npm.cmd run export:mobile -- --platform ios --output-dir dist/ios
 
 Mobile exports check that Metro can bundle the entry point for each platform; they do not prove that a native app boots. A phone/emulator check is required to complete the Phase 0 device deliverable.
 
-Current private-letter and migration status is in [the Phase 6 handoff](Documentations/15_PHASE_6_HANDOFF.md). After `npm.cmd test`, use `node scripts/check-phase6-ui.mjs` for the private-letter browser review. The Phase 4/5 scripts retain burn and friendship regressions. CI runs `test:burn-db`, `test:friends-db` and `test:private-letters-db` against isolated PostgreSQL; none reads the private `server/.env`.
+Current status is in [the Phase 10 handoff](Documentations/19_PHASE_10_HANDOFF.md). After `npm.cmd test`, use `node scripts/check-phase10-ui.mjs` for Royal choices, bird-free Astral scenery, smaller interactive stars, non-blocking support, confirmed offline recovery, real voice captions and consent/error-recovery checks. Earlier scripts retain public/private delivery, burn and safety regressions. CI adds `test:hardening-db` to isolated PostgreSQL checks; these test scripts never read private `server/.env`.
+
+Brand artwork is bundled under `client/assets/storybook`. Three 1080×1920 store previews are in `client/assets/store`; copy and regeneration notes are in [the store listing draft](Documentations/20_STORE_LISTING_DRAFT.md). Nothing has been published. The Royal metadata is reserved for future entitlements, with all active content included now. Live moderation/storage, native builds and live Sentry forwarding remain unconfigured or deferred.
 
 ## Safety requirements carried into later phases
 
@@ -274,6 +293,63 @@ Your Neon URL and API settings are now stored together in the ignored `server/.e
 
 You selected **Clerk**, **email verification codes and Google**, **13+ self-confirmation**, and **case-insensitive usernames of 3–24 lowercase letters, digits, or underscores**. Age confirmation is checked before sign-up/Google handoff and before creating a Lantern Post profile. No date of birth is collected. Live account/API verification requires matching Clerk keys and migrated Neon tables. Remaining PRD open questions will be resolved before their dependent features are built.
 
-The project includes illustrated palace scenery, walking layers, queen/angel figures, live water, antique stationery, a celestial fire realm, friendship gates and private letter reading. No new art service or native animation dependency is required. The user has deferred Expo/EAS/FCM build setup and live moderation until later; the existing setup instructions are retained. Storage/CDN, monitoring, hosting and store credentials remain in their later phases. Nothing has been published.
+The project includes illustrated palace scenery, walking layers, queen/angel figures, live water, antique stationery, a celestial fire realm, friendship gates, private letter reading and an antique voice recorder. The user installed Expo Audio during this pass. Native build setup and live moderation remain deferred; private storage wiring is prepared but has no live credentials. Monitoring, hosting and store work remain in later phases. Nothing has been published.
 
-The user installed the notification packages and then deferred APK/device setup to focus on the in-app product. Phase 6's private-letter flow is implemented and tested with isolated moderation/persistence providers. Live moderation remains unconfigured by request, so preview works while actual sending waits for that integration. The [Android guide](Documentations/14_ANDROID_NOTIFICATIONS_SETUP.md) is retained for later. The next planned in-app feature is Phase 7: voice notes.
+The [Android guide](Documentations/14_ANDROID_NOTIFICATIONS_SETUP.md) is retained for later. Automated moderation is disabled for the current release at the user's request. Real delivery is enabled with explicit unreviewed metadata; provider integration is deferred to a later update. Authentication, reports, blocks, limits and receipt recovery remain active.
+
+## Current product pass
+
+The [Phase 11 handoff](Documentations/21_PHASE_11_HANDOFF.md) covers bird-free palace scenery, the multi-letter correspondence cabinet, explicit illustrated/audio copies in browsers, phone text sharing, and the selected companion writing or recording at the desk. The user chose publisher name **The Lantern Post** and minimum age **13** for the policy drafts. Native file sharing, final policy/operator details and live launch setup remain incomplete; see the [beta runbook](Documentations/24_BETA_RELEASE_RUNBOOK.md).
+
+Restart the browser preview with `npm.cmd run dev:web -- --clear` and hard-refresh with Ctrl+Shift+R. Existing letters remain on the device. Run `npm.cmd run check:beta-ui`, `npm.cmd run load:infinity` and `npm.cmd run check:release` for the local browser rehearsal, isolated load report and launch inventory. These commands publish nothing.
+
+The [cabinet refinement](Documentations/25_CABINET_REFINEMENT_HANDOFF.md) adds confirmed removal of unfinished text/voice letters and royal navigation throughout the story screens. Run `npm.cmd run check:cabinet-ui` for the removal, recording cleanup, stale-window and responsive-navigation rehearsal.
+
+The [social refinement](Documentations/26_SOCIAL_PARLOUR_HANDOFF.md) adds username calling cards, illustrated destinations and protected real-time friend chat, and puts the writing desk before friendship gates, worlds and companion details on home. Chat needs the current database migrations. Live sends no longer require a moderation provider; the labelled sample parlour remains a separate preview. Run `npm.cmd run check:social-ui` for isolated browser verification. `Documentations` is ignored for new files; untracking its existing files still requires the manual Git step in the handoff.
+
+## Privacy, chat sockets and backups
+
+Account ? **Chat backups & privacy** opens the encrypted royal archive and confirmed account removal. Deploy the new `20260914040000_account_privacy_drive` migration with `npm.cmd run db:deploy` before starting the updated API.
+
+Chat updates now use authenticated WebSockets at `/chat/socket`; durable HTTP send receipts remain in place. Automated moderation is disabled for this release. Local backups and direct Google Drive backups use AES-256-GCM with a recovery key kept by the user. Restored backups are read-only archives, never resent messages.
+
+Direct Drive requires the four `GOOGLE_DRIVE_*` values documented in `server/.env.example`, a Google OAuth Web application client, the Drive API, and the exact `/backups/drive/callback` redirect registered with Google. Request only `drive.appdata`. Keep credentials and the stable OAuth-token encryption key in `server/.env`. Browser development can use `http://localhost:3000/backups/drive/callback`; phones/production require a reachable HTTPS API. Local backups work without Google configuration.
+
+Expo Sharing, ViewShot and DocumentPicker are installed; phone image/audio export and encrypted-file import/export are implemented. Actual Android/iOS share-sheet and picker verification remains deferred with device builds. `npm.cmd run check:privacy-ui` runs an isolated browser privacy rehearsal after API test compilation. See the local `Documentations/27_PRIVACY_SOCKETS_BACKUPS_HANDOFF.md` for setup and acceptance details.
+
+## Sending without automated moderation
+
+The current release defaults to `MODERATION_MODE=disabled` in the API. Chat, friend letters and public Infinity letters send after explicit confirmation and existing account/friendship/block/limit checks. No OpenAI key, Redis or moderation worker is needed. Uploaded audio still requires configured private storage and validation of its bytes, duration and ownership.
+
+Apply `20260914060000_optional_content_review` with `npm.cmd run db:deploy`, then restart the API and browser client together. On Windows, stop the API before `npm.cmd run db:generate` if Prisma reports a locked engine DLL. The new records carry `moderationSkipped=true`, `moderationPassed=null`, and no review timestamp. Existing approvals stay unchanged. A future `required` mode will stop new sends until a real provider exists; it does not automatically enable one.
+
+`npm.cmd run check:unreviewed-ui` verifies the real disabled-mode service with socket chat between two synthetic accounts, private delivery and unsigned public-star reading. See `Documentations/28_UNREVIEWED_DELIVERY_HANDOFF.md`.
+
+## Free voice storage and optional voice backups
+
+Voice drafts stay on the phone/browser. Sending to a friend or Infinity uploads a private delivery copy so others can listen while the sender is offline. This release supports **Supabase Free** without adding an SDK or paid service. Keep the project on Free and do not add a payment method. Provider quotas apply; live signup terms must be checked in the dashboard.
+
+Create a Free Supabase project, then add its project URL and **legacy service_role** key to `server/.env` (never client/.env). Set a dedicated private bucket name:
+
+```env
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_VOICE_BUCKET=lantern-voice
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVER_ONLY_LEGACY_SERVICE_ROLE_KEY
+VOICE_STORAGE_BUDGET_BYTES=268435456
+```
+
+Leave the old `VOICE_STORAGE_ENDPOINT`, `VOICE_STORAGE_BUCKET`, `VOICE_STORAGE_REGION`, `VOICE_STORAGE_ACCESS_KEY_ID` and `VOICE_STORAGE_SECRET_ACCESS_KEY` empty when selecting Supabase. Run `npm.cmd run setup:voice-storage`; it builds the API, creates the private bucket if missing, and checks a tiny synthetic upload/read/playback/delete without touching application data. Restart the API afterward. No database migration is needed for this pass.
+
+**Account ? Chat backups & privacy ? Your voice, kept close** lets users make an encrypted voice keepsake locally or in connected Google Drive. One recording per backup; including its caption is optional. Keep the recovery key separately. After reinstalling, sign in to the same account and reopen the backup to listen or save the audio. This never sends a new letter. Google Drive OAuth configuration remains its separate optional setup step.
+
+See `Documentations/29_FREE_VOICE_STORAGE_HANDOFF.md` for exact setup, free-tier limits and verification. `npm.cmd run check:voice-backup-ui` runs the isolated browser rehearsal after API test compilation.
+
+## Live palace and independent letter copies
+
+Friendships, letterboxes and arrival banners now update through `/events/socket`, alongside `/chat/socket` for open conversations. Both socket routes need HTTP upgrade support in a production reverse proxy. Events contain routing metadata only, with bounded owner-scoped cursors and a three-second database fallback for other server instances. In-app arrival alerts are available in Account and the friendship court; they default on, pause in the background and avoid duplicate alerts in the currently open chat.
+
+Private-letter removal now hides only your own copy. The other participant keeps theirs; shared contents and audio are purged after both remove it. Full account erasure remains a separate confirmed action. Content erased under the previous behavior cannot be reconstructed by this update.
+
+Apply the new `20260914080000_live_palace_independent_letters` migration with `npm.cmd run db:deploy`, then restart API and web. This migration is additional to the previously completed database setup. Chat acknowledgements appear immediately without skipping earlier incoming messages; voice API uploads validate/promote in one request and no longer need a second finish request. The courier still walks continuously, with a shorter skippable ceremony.
+
+Phone push is prepared for chat, private letters and invitations. The user chose browser-only development for now, so actual EAS/Firebase setup and device testing remain deferred. See `Documentations/30_LIVE_PALACE_HANDOFF.md`. `npm.cmd run check:live-palace-ui` verifies live alerts, private-copy deletion and royal controls with isolated accounts.

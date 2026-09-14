@@ -4,9 +4,33 @@
     "slug": "lantern-post",
     "version": "0.1.0",
     "scheme": "lantern-post",
+    "icon": "./assets/storybook/app-icon.png",
+    "splash": {
+      "image": "./assets/storybook/app-foreground.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8F2E2"
+    },
     "android": {
       "package": "com.lanternpost.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "allowBackup": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/storybook/app-foreground.png",
+        "monochromeImage": "./assets/storybook/app-monochrome.png",
+        "backgroundColor": "#F8F2E2"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.lanternpost.app",
+      "supportsTablet": false
     },
     "platforms": [
       "ios",
@@ -15,22 +39,41 @@
     ],
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/storybook/app-icon.png"
     },
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Lantern Post to record a voice letter when you choose Record.",
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
       [
         "expo-notifications",
         {
           "color": "#C4A777"
         }
-      ]
+      ],
+      "./plugins/with-light-theme"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "mobile": {
+        "androidPushConfigured": false
+      },
+      "router": {},
+      "eas": {
+        "projectId": "517cfd4f-9586-411f-85c5-f457ecb577e4"
+      }
+    },
+    "owner": "mriganka528"
   }
 }

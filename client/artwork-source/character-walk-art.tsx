@@ -1,9 +1,11 @@
 import type { CharacterKey } from '@lantern-post/shared-types';
 import Svg, { Ellipse, G, Path, Rect } from './svg-elements';
 import { palettes } from '../src/storybook/palettes';
+import { isRoyalCharacter, RoyalCharacterArt } from './royal-collection-art';
 
 export function CharacterWalkArt({ characterKey, part }: { characterKey: CharacterKey; part: 'body' | 'left-foot' | 'right-foot' }) {
   const p = palettes[characterKey];
+  if (isRoyalCharacter(characterKey) && part === 'body') return <RoyalCharacterArt characterKey={characterKey} back bodyOnly />;
   const rabbit = characterKey === 'rabbit-moon';
   const deer = characterKey === 'deer-dawn';
   const swan = characterKey === 'swan-cloud';

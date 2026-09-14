@@ -23,6 +23,10 @@ client/ios/
 .DS_Store
 Thumbs.db
 .idea/
+Documentations/
+AGENTS.md
+.agents/
+.codex/
 
 # Firebase's Android app configuration is designed to ship in the app.
 # FCM service-account private keys belong in EAS credentials, never this file.

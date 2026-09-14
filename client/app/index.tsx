@@ -1,19 +1,19 @@
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { usePalace } from '../src/api/use-characters';
 import { useSelfProfile } from '../src/api/use-self-profile';
 import { ActionButton, AuthPage, LoadingScreen } from '../src/components/auth-ui';
 import { requestErrorMessage } from '../src/api/client';
 import { ProfileErrorScreen, SignOutButton } from '../src/components/profile-status';
 import { PalaceHome } from '../src/storybook/palace-home';
-import { StoryDialog, s } from '../src/storybook/story-ui';
 import { useSessionToken } from '../src/auth/use-session-token';
 import { createFriendsTransport } from '../src/friends/friends-api';
 import { friendsKey, useFriendsList, useFriendsSummary } from '../src/friends/use-friends-data';
 import { createLetterBoxTransport } from '../src/letters/friend-letter-api';
 import { letterboxKey, useLetterboxSummary } from '../src/letters/use-letterbox';
+import { AccountMenu } from '../src/account/account-menu';
 
 export default function HomeScreen() {
   const profile = useSelfProfile();
@@ -38,9 +38,9 @@ export default function HomeScreen() {
   </AuthPage>;
   if (!palace.data.character) return <Redirect href="/choose-character" />;
   return <View style={{ flex: 1 }}>
-    <PalaceHome key={palace.data.character.id} character={palace.data.character} username={profile.data.user.username} onCompanions={() => router.push('/choose-character')} onAccount={() => setAccount(true)} onWrite={() => router.push('/writing-desk')}
+    <PalaceHome key={palace.data.character.id} character={palace.data.character} username={profile.data.user.username} onCompanions={() => router.push('/choose-character')} onAccount={() => setAccount(true)} onWrite={() => router.push('/writing-desk')} onInfinity={() => router.push('/infinity')}
       onFriends={() => router.push('/friends')} friends={friends.data?.pages.flatMap(page => page.items)} friendSummary={friendSummary.data} friendsUnavailable={friends.isError || friendSummary.isError}
-      onInbox={() => router.push('/inbox')} unreadLetters={letterbox.data?.unread} onWriteToFriend={person => router.push({ pathname: '/writing-desk', params: { recipient: person.id } })} />
-    {account && <StoryDialog title="Your little corner" onClose={() => setAccount(false)}><Text style={s.body}>Signed in as {profile.data.user.username}</Text><SignOutButton /></StoryDialog>}
+      onInbox={() => router.push('/inbox')} unreadLetters={letterbox.data?.unread} onWriteToFriend={person => router.push({ pathname: '/writing-desk', params: { recipient: person.id } })} onChatToFriend={person => router.push({ pathname: '/chat', params: { friend: person.id } })} />
+    {account && <AccountMenu ownerId={ownerId} username={profile.data.user.username} getToken={getToken} onClose={() => setAccount(false)} onPrivacy={() => { setAccount(false); router.push('/privacy'); }} signOut={<SignOutButton />} />}
   </View>;
 }

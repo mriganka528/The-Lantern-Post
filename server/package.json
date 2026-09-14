@@ -7,9 +7,17 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "smoke": "node scripts/smoke-api.mjs",
+    "diagnostics:summary": "node scripts/diagnostics-summary.mjs",
     "test:burn-db": "node scripts/check-burn-database.mjs",
     "test:friends-db": "node scripts/check-friends-database.mjs",
     "test:private-letters-db": "node scripts/check-private-letters-database.mjs",
+    "test:voice-db": "node scripts/check-voice-database.mjs",
+    "test:safety-db": "node scripts/check-safety-database.mjs",
+    "test:infinity-db": "node scripts/check-infinity-database.mjs",
+    "test:hardening-db": "node scripts/check-hardening-database.mjs",
+    "test:chat-db": "node scripts/check-chat-database.mjs",
+    "test:privacy-db": "node scripts/check-privacy-database.mjs",
+    "test:live-palace-db": "node scripts/check-live-palace-database.mjs",
     "db:local:up": "docker compose up -d --wait postgres",
     "db:local:down": "docker compose down",
     "lint": "eslint src test prisma.config.ts --max-warnings 0",
@@ -35,12 +43,14 @@
     "class-validator": "^0.14.2",
     "dotenv": "^17.4.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "ws": "8.21.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.1.0",
     "@types/node": "^24.0.0",
+    "@types/ws": "7.4.7",
     "prisma": "6.19.3"
   }
 }

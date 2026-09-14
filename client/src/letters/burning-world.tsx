@@ -22,9 +22,10 @@ interface BurningWorldProps {
   onCleanup: () => void;
   onBack: () => void;
   onFinish: () => void;
+  onWriteAgain?: () => void;
 }
 
-export function BurningWorld({ stage, preset, busy, saved, error, onConfirm, onKeep, onRetry, onCheck, onCleanup, onBack, onFinish }: BurningWorldProps) {
+export function BurningWorld({ stage, preset, busy, saved, error, onConfirm, onKeep, onRetry, onCheck, onCleanup, onBack, onFinish, onWriteAgain }: BurningWorldProps) {
   const { reduced, ready } = useMotionPreference();
   const [complete, setComplete] = useState(stage === 'burned');
   const [progress] = useState(() => new Animated.Value(stage === 'burned' ? 1 : 0));
@@ -55,7 +56,7 @@ export function BurningWorld({ stage, preset, busy, saved, error, onConfirm, onK
   const confirmed = stage === 'burned' && saved;
   const title = stage === 'confirm' ? 'The Burning World' : stage === 'pending' ? 'Waiting for the fire…' : !saved ? 'One last little step…' : complete ? 'A little lighter, now.' : 'Let your words become light.';
   const subtitle = stage === 'confirm' ? 'Beyond the ember gates, a guardian keeps the fire for the words you are ready to release.' : stage === 'pending' ? 'We are checking your release. Nothing will be shown as burned until it is confirmed.' : !saved ? 'The fire has received your letter. We still need to finish clearing the copy on this device.' : complete ? 'Your letter is gone. Stay with the embers for a moment, then return when you are ready.' : 'Take a breath. You don’t have to carry these words any further.';
-  return <StoryShell scrollRef={scroll} chapter="THE KINGDOM OF THE EVERFLAME" actions={<TextAction label={stage === 'confirm' ? 'My letter' : 'My palace'} onPress={stage === 'confirm' ? onKeep : onBack} disabled={stage === 'burned' && !saved} />}>
+  return <StoryShell scrollRef={scroll} chapter="THE KINGDOM OF THE EVERFLAME" actions={<TextAction label={stage === 'confirm' ? 'My letter' : 'My palace'} onPress={stage === 'confirm' ? onKeep : confirmed ? onFinish : onBack} disabled={stage === 'burned' && !saved} />}>
     <StoryHeading eyebrow="CHAPTER III · BEYOND THE EMBER GATES" title={title} subtitle={subtitle} />
     <View onLayout={({ nativeEvent }) => { sceneTop.current = nativeEvent.layout.y; }}><BurningRealm progress={progress} confirmed={confirmed} preset={preset} /></View>
     <View style={styles.controls}>
@@ -80,6 +81,7 @@ export function BurningWorld({ stage, preset, busy, saved, error, onConfirm, onK
       </View>}
       {confirmed && <View style={{ alignItems: 'center', gap: 10 }}>
         <Text accessibilityLiveRegion="polite" style={styles.complete}>{complete ? 'Released. Nothing to carry back.' : ritualStep}</Text>
+        {complete && onWriteAgain && <StoryButton label="Write another letter" onPress={onWriteAgain} />}
         <TextAction label={complete ? 'Return to my palace' : 'Skip the burn animation'} onPress={onFinish} />
       </View>}
     </View>

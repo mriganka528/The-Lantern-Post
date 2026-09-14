@@ -12,6 +12,18 @@
       "android": {
         "gradleCommand": ":app:assembleDebug"
       }
+    },
+    "preview": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "environment": "preview",
+      "node": "24.3.0",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "environment": "production",
+      "node": "24.3.0",
+      "android": { "buildType": "app-bundle" }
     }
   }
 }

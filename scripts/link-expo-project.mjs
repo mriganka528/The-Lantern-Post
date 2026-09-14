@@ -1,0 +1,11 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const projectId = process.argv.find(arg => arg.startsWith('--project-id='))?.slice(13);
+if (!projectId || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(projectId)) throw new Error('Provide the public Expo project UUID with --project-id=YOUR_UUID.');
+const path = fileURLToPath(new URL('../client/app.json', import.meta.url));
+const config = JSON.parse(readFileSync(path, 'utf8'));
+const existing = config.expo.extra?.eas?.projectId;
+if (existing && existing !== projectId) throw new Error('This app is already linked to a different Expo project. Review its app.json before changing ownership.');
+config.expo.extra = { ...config.expo.extra, eas: { ...config.expo.extra?.eas, projectId } };
+writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+console.log('Saved the public Expo project ID in client/app.json. No credentials or environment files were changed.');

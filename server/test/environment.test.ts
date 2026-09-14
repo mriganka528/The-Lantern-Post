@@ -52,3 +52,20 @@ test('browser preview permits exact local origins while production requires expl
   }
   assert.throws(() => validateEnvironment({ ...base, ...auth, NODE_ENV: 'production', WEB_ORIGINS: 'http://localhost:8081' }), /WEB_ORIGINS/);
 });
+
+test('voice storage is optional and partial configuration fails without exposing credentials', () => {
+  assert.equal(validateEnvironment(base).VOICE_STORAGE, undefined);
+  assert.throws(() => validateEnvironment({ ...base, VOICE_STORAGE_SECRET_ACCESS_KEY: 'never-show-this-secret' }), error => error instanceof Error && /all VOICE_STORAGE/.test(error.message) && !error.message.includes('never-show'));
+});
+test('automated moderation defaults off in development and production and an explicit future required mode validates',()=>{
+  assert.equal(validateEnvironment(base).MODERATION_MODE,'disabled');assert.equal(validateEnvironment({...base,...auth,NODE_ENV:'production'}).MODERATION_MODE,'disabled');assert.equal(validateEnvironment({...base,MODERATION_MODE:'required'}).MODERATION_MODE,'required');assert.throws(()=>validateEnvironment({...base,MODERATION_MODE:'allow-everything'}),/MODERATION_MODE/);
+});
+test('voice storage accepts trusted private endpoints and rejects insecure or credential-bearing locations', () => {
+  const storage = { VOICE_STORAGE_ENDPOINT: 'https://objects.example.invalid', VOICE_STORAGE_BUCKET: 'lantern-private', VOICE_STORAGE_REGION: 'auto', VOICE_STORAGE_ACCESS_KEY_ID: 'fixture-id', VOICE_STORAGE_SECRET_ACCESS_KEY: 'fixture-secret' };
+  assert.equal(validateEnvironment({ ...base, ...storage }).VOICE_STORAGE?.bucket, 'lantern-private');
+  assert.equal(validateEnvironment({ ...base, ...storage, VOICE_STORAGE_ENDPOINT: 'http://127.0.0.1:9000' }).VOICE_STORAGE?.endpoint, 'http://127.0.0.1:9000');
+  for (const endpoint of ['invalid-fixture-secret', 'https://user:fixture-secret@objects.example.invalid', 'https://objects.example.invalid/path', 'http://objects.example.invalid', 'https://objects.example.invalid?key=fixture-secret']) {
+    assert.throws(() => validateEnvironment({ ...base, ...storage, VOICE_STORAGE_ENDPOINT: endpoint }), error => error instanceof Error && /VOICE_STORAGE/.test(error.message) && !error.message.includes('fixture-secret'));
+  }
+  assert.throws(() => validateEnvironment({ ...base, ...auth, ...storage, NODE_ENV: 'production', VOICE_STORAGE_ENDPOINT: 'http://127.0.0.1:9000' }), /VOICE_STORAGE/);
+});

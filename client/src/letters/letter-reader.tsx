@@ -1,3 +1,4 @@
+import { watchPalaceEvents } from '../realtime/palace-live-state';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
 import type { FriendPerson, LetterEnvelope, OpenedFriendLetter } from '@lantern-post/shared-types';
@@ -7,15 +8,24 @@ import { ink, mutedInk, serif } from '../storybook/theme';
 import { EnvelopeArt } from './envelope-art';
 import { PaperFrame, stationeryFont } from './stationery';
 import type { LetterBoxTransport } from './friend-letter-api';
+import { VoicePlayer } from '../voice/voice-player';
+import { VoiceCaption } from '../voice/voice-caption';
+import type { SafetyTransport } from '../safety/safety-api';
+import { BlockPalaceDialog, ReportLetterDialog } from '../safety/safety-controls';
+import { pauseVoicePlayback } from '../voice/playback-registry';
+import { usePalaceBell } from '../notifications/bell-context';
 
-export function LetterReader({ item, api, onBack, onChanged, onReply }: { item: LetterEnvelope; api: LetterBoxTransport; onBack: () => void; onChanged: () => void; onReply?: (person: FriendPerson) => void }) {
+export function LetterReader({ item, api, onBack, onChanged, onReply, ownerId, safety }: { item: LetterEnvelope; api: LetterBoxTransport; onBack: () => void; onChanged: () => void; onReply?: (person: FriendPerson) => void; ownerId?: string; safety?: SafetyTransport }) {
+  const bell = usePalaceBell();
   const [letter, setLetter] = useState<OpenedFriendLetter | null>(null);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null); const [removing, setRemoving] = useState(false);
+  const [reporting, setReporting] = useState(false); const [blocking, setBlocking] = useState(false);
+  useEffect(()=>ownerId?watchPalaceEvents(ownerId,event=>{if(event.kind==='GATES_CHANGED'||event.kind==='LETTER_REMOVED'&&event.itemId===item.id){pauseVoicePlayback();setLetter(null);onBack();}}):undefined,[ownerId,item.id,onBack]);
   const active = useRef(true); const request = useRef<AbortController | null>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; request.current?.abort(); }; }, []);
   async function open() {
     if (busy) return; setBusy(true); setError(null); const abort = new AbortController(); request.current = abort;
-    try { const result = await api.open(item.id, abort.signal); if (!active.current) return; setLetter(result); onChanged(); }
+    try { const result = await api.open(item.id, abort.signal); if (!active.current) return; setLetter(result); bell?.markItemSeen(item.id); onChanged(); }
     catch { if (active.current) setError('This letter could not be opened. It may have been removed, or your connection may be resting.'); }
     finally { if (active.current) setBusy(false); }
   }
@@ -33,15 +43,18 @@ export function LetterReader({ item, api, onBack, onChanged, onReply }: { item: 
     {letter && <View style={styles.actions}>
       {letter.direction === 'received' && onReply && <StoryButton label={`Write back to ${letter.person.username}`} onPress={() => onReply(letter.person)} />}
       <TextAction label="Return to my letterbox" onPress={onBack} /><TextAction label="Remove this letter" onPress={() => setRemoving(true)} />
+      {safety && ownerId && <>{letter.direction === 'received' && <TextAction label="Report this letter" onPress={() => { pauseVoicePlayback(); setReporting(true); }} />}<TextAction label={`Block ${letter.person.username}`} onPress={() => { pauseVoicePlayback(); setBlocking(true); }} /></>}
     </View>}
-    {removing && <StoryDialog title="Let this letter go?" onClose={() => { if (!busy) setRemoving(false); }}><Text style={s.body}>This removes the letter from both palaces. Its words cannot be restored.</Text><StoryButton label={busy ? 'Putting the letter away…' : 'Remove from both palaces'} onPress={() => { void remove(); }} busy={busy} /><StoryButton label="Keep this letter" secondary onPress={() => setRemoving(false)} disabled={busy} /></StoryDialog>}
+    {removing && <StoryDialog title="Let this letter go?" onClose={() => { if (!busy) setRemoving(false); }}><Text style={s.body}>This removes the letter from your letterbox. Your friend keeps their copy. You will no longer be able to open it here.</Text><StoryButton label={busy ? 'Putting the letter away…' : 'Remove from my letterbox'} onPress={() => { void remove(); }} busy={busy} /><StoryButton label="Keep this letter" secondary onPress={() => setRemoving(false)} disabled={busy} /></StoryDialog>}
+    {reporting && safety && ownerId && <ReportLetterDialog ownerId={ownerId} letterId={item.id} sender={item.person} api={safety} onClose={() => setReporting(false)} onBlocked={() => { setLetter(null); onChanged(); onBack(); }} />}
+    {blocking && safety && ownerId && <BlockPalaceDialog ownerId={ownerId} person={item.person} api={safety} onClose={() => setBlocking(false)} onSaved={() => { setLetter(null); onChanged(); onBack(); }} />}
   </StoryShell>;
 }
 function OpenedPaper({ letter }: { letter: OpenedFriendLetter }) {
   const { ready, reduced } = useMotionPreference(); const [unfold] = useState(() => new Animated.Value(0));
   useEffect(() => { if (!ready) return; const animation = Animated.timing(unfold, { toValue: 1, duration: reduced ? 0 : 650, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== 'web' }); animation.start(); return () => animation.stop(); }, [ready, reduced, unfold]);
   return <Animated.View testID="opened-friend-letter" style={[styles.paper, { opacity: unfold, transform: [{ translateY: unfold.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>
-    <PaperFrame preset={letter.preset}><Text style={styles.postmark}>{letter.direction === 'received' ? 'FROM' : 'TO'} @{letter.person.username} · {new Date(letter.deliveredAt).toLocaleDateString()}</Text><Text selectable style={[styles.words, stationeryFont(letter.preset.config), { color: letter.preset.config.inkColor }]}>{letter.textContent}</Text><Text style={styles.signature}>Carried with a little light.</Text></PaperFrame>
+    <PaperFrame preset={letter.preset}><Text style={styles.postmark}>{letter.direction === 'received' ? 'FROM' : 'TO'} @{letter.person.username} · {new Date(letter.deliveredAt).toLocaleDateString()}</Text>{letter.type === 'VOICE' && letter.audio ? <View style={{ paddingVertical: 25 }}><VoicePlayer uri={letter.audio.url} durationMs={letter.audio.durationMs} label="A voice, carried to your gate" /><VoiceCaption text={letter.audio.caption} /></View> : <Text selectable style={[styles.words, stationeryFont(letter.preset.config), { color: letter.preset.config.inkColor }]}>{letter.textContent}</Text>}<Text style={styles.signature}>Carried with a little light.</Text></PaperFrame>
   </Animated.View>;
 }
 const styles = StyleSheet.create({

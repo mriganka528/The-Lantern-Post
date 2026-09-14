@@ -3,6 +3,7 @@ import type { CharacterKey } from '@lantern-post/shared-types';
 import Svg, { Circle, Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from './svg-elements';
 import { palettes } from '../src/storybook/palettes';
 import { SceneryBackdrop, SceneryForeground } from './scenery-art';
+import { isRoyalCharacter, RoyalPalaceDetails } from './royal-collection-art';
 
 export function PalaceArt({ characterKey }: { characterKey: CharacterKey }) {
   const uid = useId().replace(/:/g, '');
@@ -34,7 +35,6 @@ export function PalaceArt({ characterKey }: { characterKey: CharacterKey }) {
     </G>
     <G stroke={stroke} strokeWidth=".8" fill="none" opacity=".5">
       {[ [216, 88], [309, 53], [829, 69], [973, 83], [1059, 198], [159, 253], [384, 177], [782, 182] ].map(([x, y], i) => <Path key={i} d={`M${x} ${Number(y) - 7}v14m-7-7h14`} />)}
-      <Path d="M184 126q12-10 24 0 12-10 24 0M960 229q8-7 16 0 8-7 16 0M265 206q7-8 14 0 7-8 14 0" />
     </G>
     <G fill={p.shade} opacity=".17"><Path d="M0 426 70 383 123 403 205 307 281 387 332 356 410 430zM850 430l80-78 33 25 62-61 107 93 68-33v116z" /></G>
     <G fill={p.roof} opacity=".16">
@@ -90,6 +90,7 @@ export function PalaceArt({ characterKey }: { characterKey: CharacterKey }) {
       {cloud && <G><Ellipse cx="893" cy="546" rx="69" ry="13" fill={p.sky} /><Path d="M842 542c23 12 68 12 100 0l-9 14h-80z" fill={p.wall} /><Path d="M890 541c-10-5-18-12-13-19 10-15 23-9 14-32-4-10 7-16 13-9 7 8-3 10-6 7 16 29 29 17 24 37-3 11-21 17-32 16z" fill="#FFFCEE" /></G>}
       {characterKey === 'rabbit-moon' && <G fill="#EFE8F0" stroke={p.foliage}>{[212, 274, 924, 994].map(x => <G key={x}><Path d={`M${x} 553v-22`} /><Path d={`M${x} 532c-25-15-7-22 0-12 8-15 24-2 0 12z`} /></G>)}</G>}
     </G>
+    {isRoyalCharacter(characterKey) && <RoyalPalaceDetails characterKey={characterKey} />}
     <G fill={p.foliage} opacity=".58">
       <Path d="M0 577c91-31 118-67 203-44 58-29 104 0 133 34 38-6 78 1 91 27H0zM1200 577c-91-31-118-67-203-44-58-29-104 0-133 34-38-6-78 1-91 27h427z" />
     </G>

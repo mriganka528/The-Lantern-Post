@@ -17,6 +17,43 @@ before(async () => {
 });
 
 afterEach(() => { globalThis.fetch = originalFetch; });
+
+test('a stalled authentication refresh times out before sending and a fresh retry opens the letter', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let finishToken!: (value: string) => void; let sent = 0;
+  globalThis.fetch = async () => { sent++; return Response.json({ textContent: 'A little light.' }); };
+  const pending = api.apiRequest('/infinity/stars/star_test/open', () => new Promise<string>(resolve => { finishToken = resolve; }), { method: 'POST' });
+  const rejected = assert.rejects(pending, api.ApiTimeoutError);
+  t.mock.timers.tick(15_000); await rejected;
+  finishToken('late-token'); await Promise.resolve(); await Promise.resolve();
+  assert.equal(sent, 0);
+  assert.deepEqual(await api.apiRequest('/infinity/stars/star_test/open', async () => 'fresh-token', { method: 'POST' }), { textContent: 'A little light.' });
+  assert.equal(sent, 1);
+});
+
+test('closing a reader while token refresh waits settles immediately and never fetches later', async () => {
+  const controller = new AbortController(); let finishToken!: (value: string) => void; let sent = 0;
+  globalThis.fetch = async () => { sent++; return Response.json({}); };
+  const pending = api.apiRequest('/infinity/stars/star_test/open', () => new Promise<string>(resolve => { finishToken = resolve; }), { method: 'POST', signal: controller.signal });
+  const rejected = assert.rejects(pending, /cancelled/); controller.abort(); await rejected;
+  finishToken('late-token'); await Promise.resolve(); await Promise.resolve(); assert.equal(sent, 0);
+});
+
+test('the same deadline covers stalled response bodies and aborts the request', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] }); let signal: AbortSignal | null | undefined;
+  const body = new ReadableStream({ start() {} });
+  globalThis.fetch = async (_url, options) => { signal = options?.signal; return new Response(body); };
+  const rejected = assert.rejects(api.apiRequest('/infinity/stars/star_test/open', async () => 'token', { method: 'POST' }), api.ApiTimeoutError);
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  t.mock.timers.tick(15_000); await rejected; assert.equal(signal?.aborted, true);
+});
+
+test('voice API upload preserves exact binary bytes and refreshes only the original account token',async()=>{
+  const bytes=Buffer.from(Array.from({length:128},(_,i)=>i));let calls=0;globalThis.fetch=async(input,options)=>{assert.equal(input.toString(),'https://api.example.invalid/voice/uploads/voice_'+'a'.repeat(64)+'/content');assert.equal(new Headers(options?.headers).get('Content-Type'),'audio/webm');assert.deepEqual(Buffer.from(options?.body as ArrayBuffer),bytes);assert.equal(options?.redirect,'error');calls++;return Response.json({}, {status:calls===1?401:200});};await api.apiRequest('/voice/uploads/voice_'+'a'.repeat(64)+'/content',async()=> 'session-token',{method:'POST',binary:{bytes,mimeType:'audio/webm'}});assert.equal(calls,2);
+});
+test('binary uploads cannot target foreign origins, arbitrary API routes or oversized bodies',async()=>{
+  let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({});};for(const path of ['https://outside.invalid/upload','/users/me','/voice/uploads/other/content'])await assert.rejects(api.apiRequest(path,async()=> 'private-token',{method:'POST',binary:{bytes:new Uint8Array(128),mimeType:'audio/webm'}}));assert.equal(calls,0);
+});
 after(() => {
   if (originalApiUrl === undefined) delete process.env.EXPO_PUBLIC_API_URL; else process.env.EXPO_PUBLIC_API_URL = originalApiUrl;
   if (originalPublishableKey === undefined) delete process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY; else process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = originalPublishableKey;

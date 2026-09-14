@@ -11,7 +11,7 @@ import { FriendLettersService } from './friend-letters.service';
 @Controller('letters/friends')
 export class FriendLettersController {
   constructor(private readonly letters: FriendLettersService) {}
-  @Get('capabilities') @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Whether the live letter moderation provider is configured' })
+  @Get('capabilities') @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Whether text and voice delivery are available' })
   capabilities() { return this.letters.capabilities(); }
   @Get('summary') @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Your unread, received and sent private-letter counts' })
   summary(@CurrentIdentity() identity: AuthIdentity) { return this.letters.summary(identity.subject); }
@@ -23,6 +23,6 @@ export class FriendLettersController {
   list(@CurrentIdentity() identity: AuthIdentity, @Query() query: LetterBoxDto) { return this.letters.list(identity.subject, query.box, query.cursor); }
   @Post(':id/open') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Open only an authorised private letter; the recipient’s first opening marks it read' })
   open(@CurrentIdentity() identity: AuthIdentity, @Param() params: LetterIdDto) { return this.letters.open(identity.subject, params.id); }
-  @Post(':id/delete') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Permanently clear an authorised private letter from both palaces; the delivery receipt remains' })
+  @Post(':id/delete') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Remove a private letter from your own letterbox; the other participant keeps their copy' })
   remove(@CurrentIdentity() identity: AuthIdentity, @Param() params: LetterIdDto) { return this.letters.remove(identity.subject, params.id); }
 }

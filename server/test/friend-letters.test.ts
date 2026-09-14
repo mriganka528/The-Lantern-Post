@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, test } from 'node:test';
 import { ServiceUnavailableException } from '@nestjs/common';
-import type { DeliveryReceipt, FriendLetterRequest, LetterBoxPage, OpenedFriendLetter } from '@lantern-post/shared-types';
+import type { DeliveryReceipt, FriendTextLetterRequest, LetterBoxPage, OpenedFriendLetter } from '@lantern-post/shared-types';
 import { createFriendsTestApp } from './friends-fixture';
 
 let context: Awaited<ReturnType<typeof createFriendsTestApp>>;
@@ -14,12 +14,12 @@ beforeEach(() => {
   context.fixture.state.requests.push({ id: 'friendship_ab', fromUserId: 'owner-alice', toUserId: 'owner-bob', status: 'ACCEPTED', createdAt: new Date(), respondedAt: new Date() });
 });
 after(async () => { await context?.app.close(); });
-const input = (recipientId = 'owner-bob'): FriendLetterRequest => ({ requestId: randomUUID(), type: 'TEXT', destinationType: 'FRIEND', textContent: 'Dear friend, the garden is a little brighter with you in it.', presetId: 'preset_lantern', recipientId, deliveryConfirmed: true });
+const input = (recipientId = 'owner-bob'): FriendTextLetterRequest => ({ requestId: randomUUID(), type: 'TEXT', destinationType: 'FRIEND', textContent: 'Dear friend, the garden is a little brighter with you in it.', presetId: 'preset_lantern', recipientId, deliveryConfirmed: true });
 const request = (path: string, who = 'alice', body?: unknown, post = false) => fetch(`${context.url}${path}`, { method: post || body !== undefined ? 'POST' : 'GET', headers: { ...(who ? { Authorization: `Bearer ${who}` } : {}), ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
 const send = (body = input(), who = 'alice') => request('/letters', who, body);
 const open = (id: string, who = 'bob') => request(`/letters/friends/${id}/open`, who, undefined, true);
 const list = (who = 'bob', box = 'received', cursor = '') => request(`/letters/friends?box=${box}${cursor ? `&cursor=${cursor}` : ''}`, who);
-const cancel = (body: FriendLetterRequest, who = 'alice') => request(`/letters/friends/requests/${body.requestId}/cancel`, who, { recipientId: body.recipientId });
+const cancel = (body: FriendTextLetterRequest, who = 'alice') => request(`/letters/friends/requests/${body.requestId}/cancel`, who, { recipientId: body.recipientId });
 
 test('all private-letter paths reject missing/forged authentication before data access', async () => {
   for (const who of ['', 'forged']) {
@@ -61,7 +61,7 @@ test('a missing live moderator leaves delivery unconfirmed and never stores or e
   moderation = 'BROKEN'; const failure = await send(body); assert.equal(failure.status, 503); assert.ok(!(await failure.text()).includes(body.textContent));
   const productionDefault = await createFriendsTestApp();
   try {
-    assert.deepEqual(await (await fetch(`${productionDefault.url}/letters/friends/capabilities`, { headers: { Authorization: 'Bearer alice' } })).json(), { moderationAvailable: false });
+    assert.deepEqual(await (await fetch(`${productionDefault.url}/letters/friends/capabilities`, { headers: { Authorization: 'Bearer alice' } })).json(), { textAvailable: false, voiceAvailable: false, voiceStorageAvailable: false });
     productionDefault.fixture.state.requests.push({ id: 'accepted_ab', fromUserId: 'owner-alice', toUserId: 'owner-bob', status: 'ACCEPTED', createdAt: new Date(), respondedAt: new Date() });
     const response = await fetch(`${productionDefault.url}/letters`, { method: 'POST', headers: { Authorization: 'Bearer alice', 'Content-Type': 'application/json' }, body: JSON.stringify(input()) });
     assert.equal(response.status, 503); assert.equal(productionDefault.fixture.state.letters.length, 0);
@@ -119,11 +119,12 @@ test('stationery is preserved after catalog changes and neither burned nor unapp
   context.fixture.state.letters[0]!.moderationPassed = false; assert.equal((await open(result.letterId!)).status, 404);
   context.fixture.state.letters[0]!.moderationPassed = true; context.fixture.state.letters[0]!.destinationType = 'BURNING'; assert.equal((await open(result.letterId!)).status, 404);
 });
-test('either participant can permanently clear a letter; the receipt prevents replay resurrection', async () => {
+test('each participant removes only their own copy; both removals clear content without receipt resurrection', async () => {
   const body = input(); const result = await (await send(body)).json() as DeliveryReceipt;
   assert.equal((await request(`/letters/friends/${result.letterId}/delete`, 'carol', undefined, true)).status, 404);
   assert.equal((await request(`/letters/friends/${result.letterId}/delete`, 'bob', undefined, true)).status, 200);
-  assert.equal(context.fixture.state.letters[0]!.textContent, null); assert.equal(context.fixture.state.letters[0]!.stationeryJson, null); assert.equal(context.fixture.state.letters[0]!.status, 'HARD_DELETED');
+  assert.equal(context.fixture.state.letters[0]!.textContent, body.textContent);assert.ok(context.fixture.state.letters[0]!.recipientDeletedAt);assert.equal((await open(result.letterId!)).status,404);assert.equal((await open(result.letterId!, 'alice')).status,200);
+  assert.equal((await request(`/letters/friends/${result.letterId}/delete`, 'alice', undefined, true)).status,200);assert.equal(context.fixture.state.letters[0]!.textContent,null);assert.equal(context.fixture.state.letters[0]!.stationeryJson,null);assert.equal(context.fixture.state.letters[0]!.status,'HARD_DELETED');
   assert.equal((await open(result.letterId!)).status, 404); assert.deepEqual(await (await send(body)).json(), result); assert.equal(context.fixture.state.letters[0]!.textContent, null);
 });
 test('letter notification delivery contains no text and skips a letter already opened or blocked', async () => {

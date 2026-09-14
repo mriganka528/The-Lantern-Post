@@ -4,10 +4,13 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import type { PushDriver } from './push-driver';
 import { notificationDestination } from './notification-contract';
+import { claimArrival,palaceConnected } from '../realtime/palace-live-state';
+import { inAppAlertsEnabled } from '../realtime/palace-alert-settings';
 import type { NotificationResponse } from 'expo-notifications';
+import { registerPushPresentation } from './notification-presentation.native';
 
 const projectId = () => Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
-const supported = () => Platform.OS !== 'web' && Device.isDevice && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId() ?? '');
+const supported = () => Platform.OS !== 'web' && Device.isDevice && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient && (Platform.OS !== 'android' || Constants.expoConfig?.extra?.mobile?.androidPushConfigured === true) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId() ?? '');
 const seen = new Set<string>();
 let listenerOwner: object | null = null;
 export const pushDriver: PushDriver = {
@@ -15,7 +18,7 @@ export const pushDriver: PushDriver = {
   async token(requestPermission) {
     if (!supported()) throw new Error('Device notifications are unavailable.');
     const notifications = await import('expo-notifications');
-    if (Platform.OS === 'android') await notifications.setNotificationChannelAsync('palace-invitations', { name: 'Palace invitations', importance: notifications.AndroidImportance.DEFAULT, lightColor: '#C4A777', vibrationPattern: [0, 150] });
+    if (Platform.OS === 'android') await notifications.setNotificationChannelAsync('palace-invitations', { name: 'Palace messages and letters', importance: notifications.AndroidImportance.DEFAULT, lightColor: '#C4A777', vibrationPattern: [0, 150] });
     let permission = await notifications.getPermissionsAsync();
     if (!permission.granted && requestPermission && permission.canAskAgain) permission = await notifications.requestPermissionsAsync();
     if (!permission.granted && permission.ios?.status !== notifications.IosAuthorizationStatus.PROVISIONAL) throw new Error('Notification permission is needed.');
@@ -24,19 +27,21 @@ export const pushDriver: PushDriver = {
   async listen(ownerId, onOpen) {
     const notifications = await import('expo-notifications');
     const session = {}; listenerOwner = session;
-    notifications.setNotificationHandler({ handleNotification: async notification => {
-      const allowed = listenerOwner === session && Boolean(notificationDestination(notification.request.content.data, ownerId));
+    const removePresentation = await registerPushPresentation(async notification => {
+      const event=notificationDestination(notification.request.content.data,ownerId);
+      let inAppAllowed=false;try{inAppAllowed=inAppAlertsEnabled(ownerId);}catch{/* A closed account cannot show foreground alerts. */}
+      const allowed = inAppAllowed && listenerOwner === session && Boolean(event) && !palaceConnected(ownerId) && claimArrival(ownerId,event!.eventId);
       return { shouldShowBanner: allowed, shouldShowList: allowed, shouldPlaySound: allowed, shouldSetBadge: false };
-    } });
+    });
     const open = (response: NotificationResponse | null) => {
       if (!response || listenerOwner !== session || response.actionIdentifier !== notifications.DEFAULT_ACTION_IDENTIFIER) return;
       const event = notificationDestination(response.notification.request.content.data, ownerId);
       if (!event || seen.has(`${ownerId}:${event.eventId}`)) return;
       seen.add(`${ownerId}:${event.eventId}`); if (seen.size > 100) seen.delete(seen.values().next().value!);
-      void notifications.clearLastNotificationResponseAsync().catch(() => {}); onOpen(event.screen);
+      void notifications.clearLastNotificationResponseAsync().catch(() => {}); onOpen(event);
     };
     const subscription = notifications.addNotificationResponseReceivedListener(open);
     void notifications.getLastNotificationResponseAsync().then(open).catch(() => {});
-    return () => { subscription.remove(); if (listenerOwner === session) { listenerOwner = null; notifications.setNotificationHandler(null); } };
+    return () => { subscription.remove(); if (listenerOwner === session) { listenerOwner = null; removePresentation(); } };
   },
 };

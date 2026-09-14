@@ -25,9 +25,10 @@ type StubUserModel = {
 };
 
 async function withUsers(user: StubUserModel, run: (service: UsersService) => Promise<void>): Promise<void> {
+  const models = { user, accountDeletion: {findUnique: async () => null} };
   const module = await Test.createTestingModule({ imports: [UsersModule] })
     .overrideProvider(PrismaService)
-    .useValue({ user })
+    .useValue({ ...models, $transaction: (work: (tx: typeof models) => Promise<unknown>) => work(models) })
     .compile();
   try { await run(module.get(UsersService)); } finally { await module.close(); }
 }

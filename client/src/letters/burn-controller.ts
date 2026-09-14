@@ -49,6 +49,7 @@ export class BurnController {
         const saved = this.draft.applyBurnReceipt(receipt);
         this.publish({ busy: false, outcome: receipt.outcome, error: saved ? null : 'We received the result, but could not finish saving it on this device. Please try again.' });
       } catch (error) {
+        if (error && typeof error === 'object' && 'status' in error && error.status === 429) { this.publish({ busy: false, error: 'Let the palace post rest for a minute before retrying. Your release is not confirmed; you can still check its status.' }); return; }
         const expired = error && typeof error === 'object' && 'status' in error && error.status === 401;
         this.publish({ busy: false, error: expired ? 'Please sign in again, then check this release. Your letter stays sealed while its outcome is unknown.' : 'We couldn’t confirm the release. Check your connection and retry; we will check the same letter safely.' });
       }

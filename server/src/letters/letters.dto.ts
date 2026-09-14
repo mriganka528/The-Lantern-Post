@@ -1,7 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Equals, IsBoolean, IsString, IsUUID, Length, Matches, Validate, ValidatorConstraint } from 'class-validator';
+import { Equals, IsBoolean, IsIn, IsInt, IsString, IsUUID, Length, Matches, Max, Min, Validate, ValidatorConstraint } from 'class-validator';
 import type { ValidatorConstraintInterface } from 'class-validator';
-import type { BurnLetterRequest, BurnReceipt, BurnReceiptResponse } from '@lantern-post/shared-types';
+import type { BurnTextLetterRequest, BurnVoiceLetterRequest, BurnReceipt, BurnReceiptResponse } from '@lantern-post/shared-types';
+import { MAX_VOICE_BYTES, MAX_VOICE_MS } from '../voice/voice-limits';
 
 @ValidatorConstraint({ name: 'letterText', async: false })
 export class LetterText implements ValidatorConstraintInterface {
@@ -15,7 +16,7 @@ export class BurnRequestIdDto {
   requestId!: string;
 }
 
-export class BurnLetterDto extends BurnRequestIdDto implements BurnLetterRequest {
+export class BurnLetterDto extends BurnRequestIdDto implements BurnTextLetterRequest {
   @ApiProperty({ enum: ['TEXT'] })
   @Equals('TEXT')
   type!: 'TEXT';
@@ -39,6 +40,15 @@ export class BurnLetterDto extends BurnRequestIdDto implements BurnLetterRequest
   @IsBoolean()
   @Equals(true)
   burnConfirmed!: true;
+}
+export class BurnVoiceLetterDto extends BurnRequestIdDto implements BurnVoiceLetterRequest {
+  @ApiProperty({ enum: ['VOICE'] }) @Equals('VOICE') type!: 'VOICE';
+  @ApiProperty({ enum: ['BURNING'] }) @Equals('BURNING') destinationType!: 'BURNING';
+  @ApiProperty() @IsString() @Length(1, 64) @Matches(/^[a-zA-Z0-9_-]+$/) presetId!: string;
+  @ApiProperty({ enum: [true] }) @IsBoolean() @Equals(true) burnConfirmed!: true;
+  @ApiProperty({ enum: ['audio/webm', 'audio/mp4'] }) @IsIn(['audio/webm', 'audio/mp4']) audioMimeType!: 'audio/webm' | 'audio/mp4';
+  @ApiProperty() @IsInt() @Min(64) @Max(MAX_VOICE_BYTES) audioByteLength!: number;
+  @ApiProperty() @IsInt() @Min(1000) @Max(MAX_VOICE_MS) audioDurationMs!: number;
 }
 
 export class BurnReceiptDto implements BurnReceipt {

@@ -15,6 +15,6 @@ export class PresetsService {
       const preset = serializePreset(row);
       return preset ? [preset] : [];
     }).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key))
-      .map(({ id, key, displayName, description, config }) => ({ id, key, displayName, description, config }));
+      .map(({ order: _order, ...preset }) => preset);
   }
 }

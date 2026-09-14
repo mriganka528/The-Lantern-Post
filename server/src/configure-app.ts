@@ -3,8 +3,10 @@ import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Environment } from './config/environment';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 
 export function configureApp(app: INestApplication): void {
+  (app as NestExpressApplication).useBodyParser('json', { limit: '15mb' });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.enableShutdownHooks();
 

@@ -1,3 +1,4 @@
+import { AccountAccess } from '../src/account/account-access';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, test } from 'node:test';
@@ -47,6 +48,7 @@ let url: string;
 before(async () => {
   const config = new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: 'postgresql://localhost:5432/test' }));
   const module = await Test.createTestingModule({ imports: [CharactersModule] })
+    .overrideProvider(AccountAccess).useValue({assertSubject: async () => {}})
     .overrideProvider(ConfigService).useValue(config)
     .overrideProvider(PrismaService).useValue({ ...database, $transaction: (operation: (transaction: typeof database) => Promise<unknown>) => operation(database) })
     .overrideProvider(ClerkTokenVerifier).useValue({ verify: async (token: string) => {
@@ -83,7 +85,7 @@ test('catalog, palace, and selection require authentication before any database 
   assert.equal(databaseCalls, 0);
 });
 
-test('catalog returns six ordered, explicitly serialized companions and filters inactive choices', async () => {
+test('catalog returns all curated companions in order and filters inactive choices', async () => {
   const response = await request('/characters', 'alice');
   assert.equal(response.status, 200);
   const body = await response.json() as { characters: { key: string }[] };
@@ -92,7 +94,7 @@ test('catalog returns six ordered, explicitly serialized companions and filters 
   assert.ok(!JSON.stringify(body).includes('isActive'));
   catalog[0]!.isActive = false;
   const reduced = await (await request('/characters', 'alice')).json() as { characters: { key: string }[] };
-  assert.equal(reduced.characters.length, 5);
+  assert.equal(reduced.characters.length, characterKeys.length - 1);
 });
 
 test('selection rejects extra identity/theme fields, invalid IDs, and accounts without a username', async () => {

@@ -1,0 +1,37 @@
+# Allow only the API build inputs. In particular, no env files, Git history,
+# mobile artwork, native signing material, logs, backups or generated output.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!client/
+!client/package.json
+!server/
+!server/**
+!packages/
+!packages/shared-types/
+!packages/shared-types/**
+!scripts/
+!scripts/build-hosted-api.mjs
+**/node_modules
+**/node_modules/**
+**/.env
+**/.env.*
+**/dist
+**/dist/**
+**/dist-test
+**/dist-test/**
+**/coverage/**
+**/.cache/**
+**/*.tsbuildinfo
+**/*.log
+**/*.jks
+**/*.keystore
+**/*.p8
+**/*.p12
+**/*service-account*.json
+**/*firebase-adminsdk*.json
+server/test/**
+server/scripts/**

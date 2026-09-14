@@ -1,3 +1,4 @@
+import { AccountAccess } from '../src/account/account-access';
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
@@ -55,9 +56,10 @@ before(async () => {
     ...options, apiUrl: `http://127.0.0.1:${address.port}`, skipJwksCache: true,
   });
   const module = await Test.createTestingModule({ imports: [UsersModule] })
+    .overrideProvider(AccountAccess).useValue({assertSubject: async () => {}})
     .overrideProvider(ConfigService).useValue(config)
     .overrideProvider(CLERK_VERIFY_TOKEN).useValue(verifyFromLocalKeyService)
-    .overrideProvider(PrismaService).useValue({ user: {
+    .overrideProvider(PrismaService).useValue({ accountDeletion: {findUnique: async () => null}, $transaction: function(work: (tx: unknown) => Promise<unknown>) {return work(this);}, user: {
       findUnique: async ({ where }: { where: { authProviderId?: string; username?: string } }) => {
         if (where.authProviderId) { reads.push(where.authProviderId); return rows.get(where.authProviderId) ?? null; }
         return [...rows.values()].find((row) => row.username === where.username) ?? null;

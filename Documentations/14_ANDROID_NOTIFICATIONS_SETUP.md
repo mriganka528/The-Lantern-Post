@@ -1,6 +1,6 @@
 # Android phone notifications — next steps
 
-**Deferred by the user:** finish the in-app product first. These instructions are retained for the later Android/device-testing stage; they are not a prerequisite for continuing feature development in the browser.
+**Mobile work is now active.** Start with [38_ANDROID_READINESS_HANDOFF.md](./38_ANDROID_READINESS_HANDOFF.md) for the first development APK. Firebase is optional for that build and local welcome notifications. The steps below focus on remote phone push; package installation is already complete.
 
 The notification packages are now installed (`expo-notifications` 57.0.18 and `expo-device` 57.0.2), and the native adapter and config plugin are active in source. Client type checks/lint, all 115 tests, and web/iOS/Android bundle exports passed after installation. Real push delivery still requires an Expo project, Firebase credentials, and a development build on the phone.
 
@@ -11,7 +11,7 @@ The user chose Android. The prepared app ID is **`com.lanternpost.app`**, the Fi
 Start in `D:\Mobile dev\The Lantern Post` and run these commands in one PowerShell terminal:
 
 ```powershell
-# This folder has no Git repository. Keep the whole npm workspace in EAS builds.
+# Optional no-VCS workflow: keep the whole npm workspace in EAS builds.
 $env:EAS_NO_VCS = '1'
 $env:EAS_PROJECT_ROOT = (Get-Location).Path
 Set-Location client
@@ -93,3 +93,6 @@ Open **Lantern Post's development app** on your phone and connect it to Metro. S
 Keep account A signed in on the phone with alerts enabled. Send it a friendship invitation from account B in a separate browser/account. The phone should receive the invitation notice within about 30 seconds while the server worker is running. Tap it and confirm it opens A's friendship court.
 
 To test acceptance alerts, send an invitation from A to B, then accept it as B. Only A should receive that acceptance alert. Also verify permission denial, disabling alerts, sign-out, and switching accounts. No real notification has been sent or device build launched by the agent; these final checks need your linked project and phone.
+# Current Android starting point
+
+Use [38_ANDROID_READINESS_HANDOFF.md](./38_ANDROID_READINESS_HANDOFF.md) for the first development APK. Firebase is optional for that first build and local welcome notifications. The instructions below are historical remote-push setup notes; package installation is already complete, the repository now uses Git, and `setup:expo-project` handles linking with the dynamic app configuration.

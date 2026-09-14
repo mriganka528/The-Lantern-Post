@@ -1,9 +1,11 @@
 import { useAuth, useClerk } from '@clerk/expo';
 import { useMemo } from 'react';
-import { bindSessionToken } from './session-token';
+import { tokenForSession } from './session-token';
 
 export function useSessionToken() {
   const clerk = useClerk();
-  const { getToken, sessionId } = useAuth();
-  return useMemo(() => bindSessionToken(() => clerk.session?.id, sessionId, getToken), [clerk, getToken, sessionId]);
+  const { sessionId } = useAuth();
+  // Expo's useAuth wraps getToken in a new function on every render. Depending
+  // on that function restarted live subscriptions whenever a query updated.
+  return useMemo(() => tokenForSession(clerk, sessionId), [clerk, sessionId]);
 }

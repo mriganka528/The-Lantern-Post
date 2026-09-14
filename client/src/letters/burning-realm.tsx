@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Animated, AppState, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { LetterPreset } from '@lantern-post/shared-types';
 import { ZoomableRealm } from './zoomable-realm';
 import { ProgressiveBurnLetter } from './progressive-burn-letter';
 import { useReducedMotion } from '../storybook/use-reduced-motion';
 import { serif } from '../storybook/theme';
+import { useAmbientMotion, useAppActive } from '../storybook/use-ambient-motion';
 
 function RealmFlame({ clock, x, bottom, width, height, variant = 0, opacity = 1 }: { clock: Animated.Value; x: number; bottom: number; width: number; height: number; variant?: number; opacity?: number }) {
   const values = variant % 2 ? [.88, 1.08, .94, 1.12, .96, 1.03, .88] : [1.03, .91, 1.11, .97, 1.05, .92, 1.03];
@@ -18,7 +19,7 @@ function RealmFlame({ clock, x, bottom, width, height, variant = 0, opacity = 1 
 }
 
 function BurningAsh({ progress }: { progress: Animated.Value }) {
-  return <View testID="burn-ash" style={StyleSheet.absoluteFill} pointerEvents="none">
+  return <View testID="burn-ash" style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]} >
     {Array.from({ length: 42 }, (_, i) => {
       const start = .22 + i % 19 * .032;
       const end = Math.min(.995, start + .2 + i % 3 * .022);
@@ -39,16 +40,25 @@ function BurningAsh({ progress }: { progress: Animated.Value }) {
 export function BurningRealm({ progress, confirmed, preset }: { progress: Animated.Value; confirmed: boolean; preset: LetterPreset | null }) {
   const { width } = useWindowDimensions();
   const reduced = useReducedMotion();
-  const [paused, setPaused] = useState(false);
-  const [active, setActive] = useState(AppState.currentState !== 'background');
+  const { enabled, setEnabled } = useAmbientMotion();
+  return <View style={styles.realm}>
+    <ZoomableRealm height={width < 600 ? 390 : Math.min(740, (width - 96) * .625)}>
+      <RealmLayers progress={progress} confirmed={confirmed} preset={preset} />
+    </ZoomableRealm>
+    <View style={styles.legend}><View><Text style={styles.guardianName}>Aureon</Text><Text style={styles.guardianTitle}>KEEPER OF THE EVERFLAME</Text></View>
+      {!reduced && <Pressable role="switch" aria-checked={enabled} accessibilityState={{ checked: enabled }} accessibilityLabel="Ambient fire animation" onPress={() => setEnabled(!enabled)} style={styles.motion}><View style={[styles.dot, !enabled && { opacity: .3 }]} /><Text style={styles.motionText}>{enabled ? 'Living flames' : 'Still flames'}</Text></Pressable>}
+    </View>
+  </View>;
+}
+
+// Mounted by the camera only when its viewport is ready, so every loop starts
+// with its animated layers attached instead of waiting for a manual toggle.
+function RealmLayers({ progress, confirmed, preset }: { progress: Animated.Value; confirmed: boolean; preset: LetterPreset | null }) {
+  const reduced = useReducedMotion(); const { enabled } = useAmbientMotion(); const active = useAppActive();
   const [flame] = useState(() => new Animated.Value(0));
   const [breath] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', state => setActive(state === 'active'));
-    return () => subscription.remove();
-  }, []);
-  useEffect(() => {
-    if (reduced || paused || !active) return;
+    if (reduced || !enabled || !active) return;
     const options = { useNativeDriver: Platform.OS !== 'web', isInteraction: false };
     const flicker = Animated.loop(Animated.timing(flame, { ...options, toValue: 1, duration: 4700, easing: Easing.linear }));
     const presence = Animated.loop(Animated.sequence([
@@ -56,9 +66,8 @@ export function BurningRealm({ progress, confirmed, preset }: { progress: Animat
       Animated.timing(breath, { ...options, toValue: 0, duration: 5100, easing: Easing.inOut(Easing.sin) }),
     ]));
     flicker.start(); presence.start(); return () => { flicker.stop(); presence.stop(); };
-  }, [active, breath, flame, paused, reduced]);
-  return <View style={styles.realm}>
-    <ZoomableRealm height={width < 600 ? 390 : Math.min(740, (width - 96) * .625)}>
+  }, [active, breath, enabled, flame, reduced]);
+  return <>
       <Image source={require('../../assets/storybook/ember-realm.png')} style={styles.world} resizeMode="stretch" accessible={false} />
       <Animated.Image source={require('../../assets/storybook/ember-glow.png')} style={{ position: 'absolute', left: 456, top: 55, width: 688, height: 688, opacity: breath.interpolate({ inputRange: [0, 1], outputRange: [.18, .32] }) }} accessible={false} />
       <View testID="realm-ambient-flames" style={StyleSheet.absoluteFill}>
@@ -69,7 +78,7 @@ export function BurningRealm({ progress, confirmed, preset }: { progress: Animat
       <RealmFlame clock={flame} x={556} bottom={477} width={56} height={98} opacity={.85} />
       <RealmFlame clock={flame} x={1044} bottom={477} width={56} height={98} opacity={.85} variant={1} />
       <Animated.Image source={require('../../assets/storybook/ember-glow.png')} style={{ position: 'absolute', left: 680, top: 355, width: 240, height: 240, opacity: breath.interpolate({ inputRange: [0, 1], outputRange: [.15, .35] }) }} accessible={false} />
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
         {Array.from({ length: 16 }, (_, i) => <Animated.View key={i} style={{ position: 'absolute', left: 430 + i * 83 % 750, top: 234 + i * 47 % 476, width: 2 + i % 3, height: 2 + i % 3, borderRadius: 4, backgroundColor: '#E7C993', opacity: breath.interpolate({ inputRange: [0, 1], outputRange: [.16, .52] }), transform: [{ translateY: breath.interpolate({ inputRange: [0, 1], outputRange: [0, -19 - i % 5 * 3] }) }] }} />)}
       </View>
       <ProgressiveBurnLetter progress={progress} preset={preset} />
@@ -81,11 +90,7 @@ export function BurningRealm({ progress, confirmed, preset }: { progress: Animat
       {confirmed && <BurningAsh progress={progress} />}
       <Image source={require('../../assets/storybook/realm-altar.png')} style={styles.world} resizeMode="stretch" accessible={false} />
       {confirmed && <Animated.Image testID="settled-ashes" source={require('../../assets/storybook/ritual-ashes.png')} style={{ position: 'absolute', left: 686, top: 783, width: 228, height: 54, opacity: progress.interpolate({ inputRange: [0, .5, .94, 1], outputRange: [0, 0, 1, 1] }) }} accessible={false} />}
-    </ZoomableRealm>
-    <View style={styles.legend}><View><Text style={styles.guardianName}>Aureon</Text><Text style={styles.guardianTitle}>KEEPER OF THE EVERFLAME</Text></View>
-      {!reduced && <Pressable role="switch" aria-checked={!paused} accessibilityState={{ checked: !paused }} accessibilityLabel="Ambient fire animation" onPress={() => setPaused(value => !value)} style={styles.motion}><View style={[styles.dot, paused && { opacity: .3 }]} /><Text style={styles.motionText}>{paused ? 'Still flames' : 'Living flames'}</Text></Pressable>}
-    </View>
-  </View>;
+  </>;
 }
 
 const styles = StyleSheet.create({

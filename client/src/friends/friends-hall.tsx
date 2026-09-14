@@ -12,20 +12,24 @@ import { FriendGate, FriendGateVisit } from './friend-gate';
 import { friendErrorMessage, normalizeFriendSearch, validFriendSearch } from './friends-api';
 import type { FriendsTransport } from './friends-api';
 import { useFriendAction, useFriendSearch, useFriendsList, useFriendsSummary } from './use-friends-data';
+import type { SafetyTransport } from '../safety/safety-api';
+import { BlockPalaceDialog, ClosedGates } from '../safety/safety-controls';
+import { UsernameCard } from './username-card';
 
-export function FriendsHall({ ownerId, username, api, onBack, notifications, onWrite }: { ownerId: string; username: string; api: FriendsTransport; onBack: () => void; notifications?: ReactNode; onWrite?: (person: FriendPerson) => void }) {
+export function FriendsHall({ ownerId, username, api, onBack, notifications, onWrite, onChat, safety }: { ownerId: string; username: string; api: FriendsTransport; onBack: () => void; notifications?: ReactNode; onWrite?: (person: FriendPerson) => void; onChat?: (person: FriendPerson) => void; safety?: SafetyTransport }) {
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<FriendsView>('friends');
   const [name, setName] = useState(''); const [query, setQuery] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [visit, setVisit] = useState<{ person: FriendPerson; newlyAccepted: boolean } | null>(null);
   const [decline, setDecline] = useState<FriendConnection | null>(null);
+  const [blocking, setBlocking] = useState<FriendPerson | null>(null);
   const summary = useFriendsSummary(api, ownerId);
   const list = useFriendsList(api, ownerId, tab);
   const search = useFriendSearch(api, ownerId, query);
   const action = useFriendAction(api, ownerId);
   const small = width < 650;
-  const resultsVisible = query && normalizeFriendSearch(name) === query;
+  const resultsVisible = query.length > 0 && normalizeFriendSearch(name) === query;
   const entries = list.data?.pages.flatMap(page => page.items) ?? [];
   const refresh = () => { void summary.refetch(); void list.refetch(); if (query) void search.refetch(); };
   async function act(input: { kind: 'send'; username: string } | { kind: 'accept' | 'decline'; id: string }) {
@@ -50,10 +54,11 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
         <Image source={require('../../assets/storybook/friendship-court.png')} style={StyleSheet.absoluteFill} resizeMode="cover" accessible={false} />
         <View style={styles.bannerPlaque}><PalaceCrest size={42} color="#896B3F" /><Text style={styles.plaqueTitle}>The royal guestbook</Text><Text style={styles.plaqueText}>YOUR PALACE · @{username}</Text></View>
       </View>
+      <View style={{ alignItems: 'center', marginTop: 18 }}><UsernameCard username={username} /></View>
       <View style={[styles.searchPanel, !small && { flexDirection: 'row' }]}>
         <View style={{ flex: 1, gap: 8 }}><Text style={s.eyebrow}>FIND A FAMILIAR SOUL</Text><Text style={styles.panelTitle}>A name opens the way.</Text><Text style={s.body}>Search by username to find their palace. Your own name is @{username}.</Text></View>
         <View style={[styles.searchForm, !small && { maxWidth: 470 }]}>
-          <View style={styles.inputRow}><Text style={styles.at}>@</Text><TextInput accessibilityLabel="Friend's username" value={name} onChangeText={value => { setName(value); if (!action.isPending) action.reset(); }} maxLength={25} autoCapitalize="none" autoCorrect={false} placeholder="their_username" placeholderTextColor="#938570" returnKeyType="search" onSubmitEditing={submitSearch} style={styles.input} /></View>
+          <View style={styles.inputRow}><Text style={styles.at}>@</Text><TextInput accessibilityLabel="Friend's username" value={name} onChangeText={value => { setName(value.replace(/^@/, '')); if (!action.isPending) action.reset(); }} maxLength={25} autoCapitalize="none" autoCorrect={false} placeholder="their_username" placeholderTextColor="#938570" returnKeyType="search" onSubmitEditing={submitSearch} style={styles.input} /></View>
           <StoryButton label="Find their palace" onPress={submitSearch} disabled={!validFriendSearch(name)} />
           <Text style={styles.hint}>3–24 letters, numbers, or underscores.</Text>
         </View>
@@ -62,7 +67,7 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
         <View style={styles.sectionTop}><Text accessibilityRole="header" style={styles.panelTitle}>Palaces in the guestbook</Text><TextAction label="Close search" onPress={() => { setQuery(''); setName(''); }} /></View>
         {search.isPending ? <Waiting label="Looking through the guestbook…" /> : search.isError ? <Problem message={friendErrorMessage(search.error)} onRetry={() => { void search.refetch(); }} /> : <>
           {!search.data.results.length && <Text style={s.body}>No palace matches that name. Try a few more letters, or check the spelling with your friend.</Text>}
-          {search.data.results.map(result => <SearchCard key={result.person.id} result={result} busy={action.isPending} onSend={() => { void act({ kind: 'send', username: result.person.username }); }} onIncoming={() => setTab('incoming')} onFriends={() => setVisit({ person: result.person, newlyAccepted: false })} />)}
+          {search.data.results.map(result => <View key={result.person.id}><SearchCard result={result} busy={action.isPending} onSend={() => { void act({ kind: 'send', username: result.person.username }); }} onIncoming={() => setTab('incoming')} onFriends={() => setVisit({ person: result.person, newlyAccepted: false })} />{safety && <TextAction label={`Block ${result.person.username}`} onPress={() => setBlocking(result.person)} />}</View>)}
           {search.data.hasMore && <Text style={styles.hint}>There are more palaces with this beginning. Type more of the username to find yours.</Text>}
         </>}
       </View>}
@@ -78,15 +83,17 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
         <Text style={styles.emptyBody}>{tab === 'friends' ? 'Find a friend above and leave an invitation. When it is accepted, their gate will find a place here.' : tab === 'incoming' ? `Share @${username} with someone you know. Their invitation will be waiting here.` : 'Your sent invitations will rest here while you wait for a reply.'}</Text>
       </View> : <View style={tab === 'friends' ? styles.gates : styles.requests}>
         {entries.map(entry => tab === 'friends' ? <FriendGate key={entry.id} person={entry.person} onPress={() => setVisit({ person: entry.person, newlyAccepted: false })} /> : <View key={entry.id} style={styles.invitation}>
-          <PersonHeading person={entry.person} /><Text style={styles.invitationCopy}>{tab === 'incoming' ? 'A sealed invitation to join your circle.' : 'Your invitation is waiting at their gate.'}</Text>
+          <PersonHeading person={entry.person} /><Text style={styles.invitationCopy}>{tab === 'incoming' ? 'A sealed invitation to join your circle.' : 'Your invitation is waiting at their gate.'}</Text>{safety && <TextAction label={`Block ${entry.person.username}`} onPress={() => setBlocking(entry.person)} />}
           {tab === 'incoming' ? decline?.id === entry.id ? <View style={styles.reply}><Text style={s.body}>Let this invitation pass?</Text><TextAction label={`Keep invitation from ${entry.person.username}`} onPress={() => setDecline(null)} disabled={action.isPending} /><StoryButton label={`Decline ${entry.person.username}'s invitation`} secondary onPress={() => { void act({ kind: 'decline', id: entry.id }); }} disabled={action.isPending} /></View> : <View style={styles.reply}><StoryButton label={`Welcome ${entry.person.username}`} onPress={() => { void act({ kind: 'accept', id: entry.id }); }} disabled={action.isPending} /><TextAction label={`Decline invitation from ${entry.person.username}`} onPress={() => setDecline(entry)} disabled={action.isPending} /></View> : <Text style={styles.waitingReply}>AWAITING A REPLY</Text>}
         </View>)}
       </View>}
       {list.hasNextPage && <View style={{ alignItems: 'center', marginTop: 18 }}><TextAction label={list.isFetchingNextPage ? 'Turning the page…' : 'Turn another page'} onPress={() => { void list.fetchNextPage(); }} disabled={list.isFetchingNextPage} /></View>}
       {summary.isError && <Text style={styles.hint}>Counts are unavailable. Refresh to check for new invitations.</Text>}
       {notifications}
+      {safety && <ClosedGates ownerId={ownerId} api={safety} />}
     </StoryShell>
-    {visit && <FriendGateVisit person={visit.person} newlyAccepted={visit.newlyAccepted} onClose={() => setVisit(null)} onWrite={onWrite ? () => { const person = visit.person; setVisit(null); onWrite(person); } : undefined} />}
+    {visit && <FriendGateVisit person={visit.person} newlyAccepted={visit.newlyAccepted} onClose={() => setVisit(null)} onWrite={onWrite ? () => { const person = visit.person; setVisit(null); onWrite(person); } : undefined} onChat={onChat ? () => { const person = visit.person; setVisit(null); onChat(person); } : undefined} onBlock={safety ? () => { setBlocking(visit.person); setVisit(null); } : undefined} />}
+    {blocking && safety && <BlockPalaceDialog ownerId={ownerId} person={blocking} api={safety} onClose={() => setBlocking(null)} onSaved={() => { setBlocking(null); setQuery(''); setName(''); setNotice('The gate has been closed. You can manage it in My closed gates.'); }} />}
   </>;
 }
 function SearchCard({ result, busy, onSend, onIncoming, onFriends }: { result: FriendSearchResult; busy: boolean; onSend: () => void; onIncoming: () => void; onFriends: () => void }) {

@@ -1,6 +1,7 @@
 // Actual client components and Nest endpoints. Test identities, persistence
 // and moderation are isolated providers; no live letter is sent or approved.
 import assert from 'node:assert/strict';
+import { readStoredLetter, waitStoredStage } from './browser-letter-storage.mjs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
@@ -85,7 +86,7 @@ try {
   const alice = await pageFor('alice'); const bob = await pageFor('bob', 'inbox');
   await alice.bringToFront();
   const words = 'Dear Lune,\n\nThe moonflowers are blooming again. I saved a little light from the garden for you.\n\nWith warmth,\nEmber';
-  const storage = () => alice.evaluate(() => JSON.parse(localStorage.getItem('lantern-draft-v1-owner-alice')));
+  const storage = () => readStoredLetter(alice, 'owner-alice');
   async function chooseGate() {
     await alice.getByRole('button', { name: "Send to a friend's gate", exact: true }).click();
     await alice.getByRole('radio', { name: 'Send to bob', exact: true }).click();
@@ -119,7 +120,7 @@ try {
   mode = 'approved'; release(); await alice.getByTestId('delivery-journey').waitFor(); assert.equal((await storage()).text, '');
   await alice.waitForFunction(() => getComputedStyle(document.querySelector('[data-testid="delivery-gate-left"]')).opacity === '0', undefined, { timeout: 10000 });
   await alice.getByTestId('delivery-journey').screenshot({ path: resolve(output, '02-delivered-at-the-gate.png') });
-  await alice.getByRole('button', { name: 'Return to my palace', exact: true }).click(); await home(); assert.equal((await storage()).stage, 'writing');
+  await alice.getByRole('button', { name: 'Return to my palace', exact: true }).click(); await home(); assert.equal((await storage()).stage, 'delivered');
   await bob.bringToFront(); await bob.getByRole('button', { name: 'Refresh letterbox', exact: true }).click();
   await bob.getByRole('button', { name: 'Open letter from alice, unopened', exact: true }).waitFor();
   await bob.screenshot({ path: resolve(output, '03-private-letterbox.png') });
@@ -128,8 +129,8 @@ try {
   await bob.getByRole('button', { name: 'Break the seal', exact: true }).click(); await bob.getByText(words, { exact: true }).waitFor(); assert.ok(backend.fixture.state.letters[0].readAt);
   await bob.getByTestId('opened-friend-letter').screenshot({ path: resolve(output, '04-opened-vintage-letter.png') });
   await bob.getByRole('button', { name: 'Remove this letter', exact: true }).click(); await bob.getByRole('button', { name: 'Keep this letter', exact: true }).click(); assert.equal(backend.fixture.state.letters[0].status, 'DELIVERED');
-  await bob.getByRole('button', { name: 'Remove this letter', exact: true }).click(); await bob.getByRole('button', { name: 'Remove from both palaces', exact: true }).click();
-  await bob.getByText('The post is quiet, for now.', { exact: true }).waitFor(); assert.equal(backend.fixture.state.letters[0].textContent, null);
+  await bob.getByRole('button', { name: 'Remove this letter', exact: true }).click(); await bob.getByRole('button', { name: 'Remove from my letterbox', exact: true }).click();
+  await bob.getByText('The post is quiet, for now.', { exact: true }).waitFor(); assert.equal(backend.fixture.state.letters[0].textContent, words);assert.ok(backend.fixture.state.letters[0].recipientDeletedAt);
   // Lost acknowledgement and reload recover from a receipt without a second send.
   await newLetter('A second little light, safe after an interrupted reply.'); loseReply = true;
   const beforeSend = requests.filter(r => r.path === '/letters').length;
@@ -148,7 +149,7 @@ try {
   await seal('A delivery owned by the first account.'); mode = 'hold'; const previousChecks = checks;
   await alice.getByRole('button', { name: 'Send my letter to bob', exact: true }).click(); while (checks === previousChecks) await alice.waitForTimeout(10);
   await alice.evaluate(() => window.__phase6.setOwner('carol')); await alice.getByRole('textbox', { name: 'Your letter' }).fill('A private draft belonging only to Carol.'); mode = 'approved'; release();
-  await alice.waitForFunction(() => JSON.parse(localStorage.getItem('lantern-draft-v1-owner-alice')).stage === 'delivered');
+  await waitStoredStage(alice, 'owner-alice', 'delivered');
   assert.equal(await alice.getByRole('textbox', { name: 'Your letter' }).inputValue(), 'A private draft belonging only to Carol.');
   assert.deepEqual(errors, []);
   console.log('Phase 6 browser checks passed: zero-send preview, walking courier, confirmed delivery, local cleanup, private reading/deletion, lost reply/reload, durable cancellation, account isolation, and phone/reduced-motion layout.');

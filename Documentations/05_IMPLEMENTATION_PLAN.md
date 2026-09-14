@@ -1,7 +1,21 @@
 # Implementation Plan
+
+Current active task: public HTTPS API preparation, requested as step 3 of the development list. Follow [40_PUBLIC_API_DEPLOYMENT.md](./40_PUBLIC_API_DEPLOYMENT.md) for the root-directory Node deployment, server-only settings and HTTP/WSS verification. Free/no-card host eligibility and actual deployment remain operator tasks. The first Expo/project/development-APK setup is user-reported complete; the separate [Android device checklist](./39_ANDROID_DEVICE_CHECKLIST.md) remains unconfirmed. Generic browser real-account testing remains user-confirmed complete.
+
+Current status: see [37_RELEASE_STATUS.md](./37_RELEASE_STATUS.md). The user has confirmed real-account testing complete. Supabase voice storage and current database migrations are user-confirmed working/applied. Remaining items are Google Drive OAuth setup, legal details, public deployment/operations, and the separately deferred native/push/release work. Earlier phase handoffs record their status at the time they were written.
+
+Social refinement: `30_LIVE_PALACE_HANDOFF.md` adds owner-scoped live updates/arrival alerts, independent private-letter deletion, faster chat/audio delivery, royal username plaques and prominent home navigation. Its migration belongs to the user-confirmed completed migration work. Phone notifications are prepared, with actual Android setup still deferred by the user's browser-only choice.
+
+Storage refinement: `29_FREE_VOICE_STORAGE_HANDOFF.md` implements no-card Supabase Free voice delivery, authenticated API uploads, local recording and optional encrypted Drive voice keepsakes. Supabase is now configured and user-confirmed working; direct Drive OAuth setup remains separate. No new database migration is required.
+
+Latest release decision (14 September 2026): automated moderation is disabled. Real chat, friend letters and Infinity publication work without a provider, with explicit unreviewed records. Hosted moderation, workers and an administrator review screen are deferred to a later update after getting users. See `28_UNREVIEWED_DELIVERY_HANDOFF.md`. Existing user reports, blocks, limits, confirmation and recovery remain active.
 ## Lantern Post — Phased Build Plan
 
+Previous refinement: `26_SOCIAL_PARLOUR_HANDOFF.md` adds username calling cards, the illustrated sealed-letter destination court, moderated friend-chat infrastructure, and home sections ordered writing desk → friendship gates → worlds → companion/rest. On 14 September 2026 the user confirmed applying the chat migration with `npm.cmd run db:deploy`; live moderation stays deferred. The original plan still ends at Phase 11.
+
 Each phase should produce something runnable/testable before moving on. Designed to be handed to Claude (or a dev team) phase by phase.
+
+Current implementation: **Phase 11 preparation and later product refinements**, with the main in-app flows, multi-letter cabinet, privacy/account removal, native sharing code, socket chat, and encrypted local/Drive backup integration implemented. The user confirmed completing the current database migrations, including privacy/Drive and optional content review. Remaining work is live configuration, real provider/device acceptance, final legal/contact details, monitoring, staging load checks and beta/store release. Automated moderation is optional future-update work by the latest user decision. Android/EAS/Firebase setup remains deferred. No public release has been made, and the original plan has no Phase 12.
 
 ---
 
@@ -77,6 +91,7 @@ Each phase should produce something runnable/testable before moving on. Designed
 - **Deliverable:** release-candidate build
 
 ### Phase 11 — Beta & Launch Prep
+- **Current status (13 September 2026):** in-app improvements, isolated load rehearsals, age-13 policy review pages and a release runbook are prepared; see `21_PHASE_11_HANDOFF.md`. Native builds, live services and public launch remain deferred. Policy contacts/operator details and native file-sharing device verification are still pending; packages and native sharing code are installed.
 - TestFlight / Play Console internal testing
 - Load-test the Infinity World read path and send path
 - Finalize Terms of Service & Privacy Policy (retention policy, moderation policy, age requirement)
@@ -89,3 +104,7 @@ Each phase should produce something runnable/testable before moving on. Designed
 - Burning World before Friends/Infinity World: it's the simplest destination (no recipient, no public exposure), so it validates the whole compose→send→animate loop with the least risk.
 - Moderation lands before Infinity World goes live: never ship public unmoderated content, even in beta.
 - Voice notes are deliberately deferred past the first working text loop, since they add real infra (upload, storage, compression) that shouldn't block validating the core game loop.
+
+## Post-phase-11 privacy and chat refinement
+
+Account removal/privacy controls, native image/audio export implementation, authenticated socket chat, local encrypted archives and direct Google Drive OAuth/backups are implemented. See `27_PRIVACY_SOCKETS_BACKUPS_HANDOFF.md`. New database deployment, real Google OAuth configuration/acceptance and native device acceptance remain operator steps; APK/EAS/push and live moderation remain deferred.

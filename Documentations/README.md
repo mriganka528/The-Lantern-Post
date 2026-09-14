@@ -19,6 +19,11 @@ A fairytale-themed mobile app where users write letters or record voice notes an
 - [`13_PHASE_5_HANDOFF.md`](./13_PHASE_5_HANDOFF.md) — Friendship court, invitations, palace gates, notification wiring, and pending live setup
 - [`14_ANDROID_NOTIFICATIONS_SETUP.md`](./14_ANDROID_NOTIFICATIONS_SETUP.md) — Android development APK, Expo project linking, Firebase/FCM setup, and phone testing
 - [`15_PHASE_6_HANDOFF.md`](./15_PHASE_6_HANDOFF.md) — Private letters, journey preview, letterbox/reader, delivery recovery and deferred integrations
+- [`16_PHASE_7_HANDOFF.md`](./16_PHASE_7_HANDOFF.md) — Persistent ambient motion, fresh writing after burning, voice recording/playback, private uploads and cleanup
+- [`17_PHASE_8_HANDOFF.md`](./17_PHASE_8_HANDOFF.md) — Faster palace water, flying doves, celestial sealing, reporting, blocking and request limits
+- [`18_PHASE_9_HANDOFF.md`](./18_PHASE_9_HANDOFF.md) — Infinity World, public text/voice, signature privacy, bounded sky browsing and sharing recovery
+- [`19_PHASE_10_HANDOFF.md`](./19_PHASE_10_HANDOFF.md) — Free Royal Collection, Astral performance change, interactive stars, recovery, captions, support, retention and diagnostics
+- [`20_STORE_LISTING_DRAFT.md`](./20_STORE_LISTING_DRAFT.md) — Brand assets, framed preview screenshots and draft store copy
 
 ## Quick facts
 
@@ -44,8 +49,16 @@ npm run dev:web -- --clear
 
 ## Status
 
-Phase 6 adds the private text-letter flow, continuous delivery journey, labelled preview and palace letterbox/reader. The user has deferred Android builds, live push and live moderation while the in-app product is built. The production moderation boundary stays closed until a real provider is configured; isolated test providers verify delivery during development. Follow the [Phase 6 handoff](./15_PHASE_6_HANDOFF.md) for the new migration and verified behaviour.
+The main product features and refinements through [the account-menu update](./36_ACCOUNT_MENU_DIALOG_HANDOFF.md) are implemented. The user has confirmed real-account testing complete; Supabase voice storage and current database migrations are also user-confirmed working/applied. Native sharing code/packages are installed. See [the current remaining-work checklist](./37_RELEASE_STATUS.md) for Google Drive setup, legal details, public deployment/operations and deferred native, push and release work. Automated moderation remains an optional later update.
 
 ## License / Ownership
 
 Set this before publishing anywhere public — currently unspecified.
+
+Latest refinement: [Privacy, socket chat and direct Drive backups](27_PRIVACY_SOCKETS_BACKUPS_HANDOFF.md).
+
+Latest release decision: [Normal delivery without automated moderation](28_UNREVIEWED_DELIVERY_HANDOFF.md). Real sending is enabled with unreviewed metadata; hosted moderation is deferred to a later update.
+
+Latest storage work: [Free voice delivery and optional voice keepsakes](29_FREE_VOICE_STORAGE_HANDOFF.md).
+
+Latest social work: [Live palace, independent copies and arrival alerts](30_LIVE_PALACE_HANDOFF.md).

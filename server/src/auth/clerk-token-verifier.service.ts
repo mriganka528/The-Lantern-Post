@@ -50,7 +50,7 @@ export class ClerkTokenVerifier {
       ) {
         throw new Error('Invalid session claims');
       }
-      return Object.freeze({ subject: claims.sub, sessionId: claims.sid });
+      return Object.freeze({ subject: claims.sub, sessionId: claims.sid, expiresAt: claims.exp * 1000 });
     } catch (error) {
       if (error && typeof error === 'object' && 'reason' in error &&
         ['jwk-remote-failed-to-load', 'secret-key-invalid'].includes(String(error.reason))) {

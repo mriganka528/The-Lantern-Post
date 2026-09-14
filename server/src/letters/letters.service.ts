@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { BurnLetterRequest, BurnReceipt } from '@lantern-post/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import { serializePreset } from '../presets/preset';
+import { activeAccount } from '../account/account-access';
 
 const receiptSelect = { id: true, outcome: true, reason: true, createdAt: true } as const;
 type ReceiptRow = Prisma.BurnReceiptGetPayload<{ select: typeof receiptSelect }>;
@@ -25,7 +26,7 @@ export class LettersService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async owner(authProviderId: string) {
-    const owner = await this.prisma.user.findUnique({ where: { authProviderId }, select: { id: true, characterId: true } });
+    const owner = await this.prisma.user.findUnique({ where: { authProviderId, accountState: 'ACTIVE' }, select: { id: true, characterId: true } });
     if (!owner) throw new ConflictException({ code: 'PROFILE_REQUIRED', message: 'Choose a username first.' });
     return owner;
   }
@@ -45,6 +46,7 @@ export class LettersService {
 
     try {
       const receipt = await this.prisma.$transaction(async tx => {
+        await activeAccount(tx, owner.id);
         const preset = await tx.preset.findUnique({ where: { id: input.presetId }, select: { id: true, key: true, displayName: true, configJson: true, isActive: true } });
         if (!preset?.isActive || !serializePreset(preset)) {
           return tx.burnReceipt.create({ data: { id, ownerId: owner.id, outcome: 'REJECTED', reason: 'PRESET_UNAVAILABLE' }, select: receiptSelect });
@@ -54,13 +56,13 @@ export class LettersService {
         // content-free HARD_DELETED audit stub; input.textContent is never used
         // in a database call, log, receipt, or moderation queue.
         const letter = await tx.letter.create({ data: {
-          id, senderId: owner.id, type: 'TEXT', destinationType: 'BURNING', presetId: preset.id,
+          id, senderId: owner.id, type: input.type, destinationType: 'BURNING', presetId: preset.id,
           status: 'HARD_DELETED', textContent: null, audioUrl: null, audioDurationMs: null,
           recipientId: null, isSigned: false, posX: null, posY: null,
           deliveredAt: now, softDeletedAt: now, hardDeleteAfter: now,
         }, select: { id: true } });
         return tx.burnReceipt.create({ data: { id, ownerId: owner.id, outcome: 'BURNED', letterId: letter.id, createdAt: now }, select: receiptSelect });
-      }, { timeout: 10_000 });
+      }, { timeout: 10_000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return serializeReceipt(receipt, input.requestId);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

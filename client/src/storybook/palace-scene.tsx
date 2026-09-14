@@ -8,52 +8,65 @@ import { line, palettes } from './theme';
 import { useReducedMotion } from './use-reduced-motion';
 import { WalkingCompanion } from './walking-companion';
 import type { ArrivalStage } from './walking-companion';
+import { useAmbientMotion, useAppActive } from './use-ambient-motion';
 
 export function PalaceScene({ characterKey, compact = false, paused = false, arrival = 'settled', onArrival, worldOverlay }: {
   characterKey: CharacterKey; compact?: boolean; paused?: boolean; arrival?: ArrivalStage; onArrival?: () => void; worldOverlay?: ReactNode;
 }) {
   const { width } = useWindowDimensions();
   const [layout, setLayout] = useState({ width: 0, height: 0 });
+  const height = compact ? 196 : width < 600 ? Math.min(300, (width - 40) * .78) : Math.min(660, (width - 96) * .55);
+  const scale = Math.max(layout.width / 1200, layout.height / 660);
+  return <View style={[styles.scene, { height, backgroundColor: palettes[characterKey].mist }]}
+    onLayout={({ nativeEvent }) => setLayout(previous => previous.width === nativeEvent.layout.width && previous.height === nativeEvent.layout.height ? previous : { width: nativeEvent.layout.width, height: nativeEvent.layout.height })}
+    accessibilityLabel="A majestic palace with a flowing river, waterfalls, royal queens and angels among the clouds" accessible accessibilityRole="image">
+    {layout.width > 0 && <View style={{ position: 'absolute', width: 1200, height: 660, left: (layout.width - 1200 * scale) / 2, top: (layout.height - 660 * scale) / 2, transformOrigin: 'left top', transform: [{ scale }] }}>
+      <PalaceWorld characterKey={characterKey} compact={compact} paused={paused} arrival={arrival} onArrival={onArrival} worldOverlay={worldOverlay} />
+    </View>}
+    <View style={[styles.frame, { pointerEvents: "none" }]} />
+  </View>;
+}
+
+// The clock and its animated layers mount together, after the scene has a
+// size. Starting a loop in the outer view could leave its late-mounted layers
+// at frame zero until the visitor toggled motion off and on.
+function PalaceWorld({ characterKey, compact, paused, arrival, onArrival, worldOverlay }: { characterKey: CharacterKey; compact: boolean; paused: boolean; arrival: ArrivalStage; onArrival?: () => void; worldOverlay?: ReactNode }) {
   const reduced = useReducedMotion();
+  const { enabled } = useAmbientMotion(); const active = useAppActive();
   const [drift] = useState(() => new Animated.Value(0));
   const [water] = useState(() => new Animated.Value(0));
+  const [current] = useState(() => new Animated.Value(0));
   useEffect(() => {
-    if (reduced || paused || compact) return;
+    if (reduced || paused || compact || !enabled || !active) return;
     const settings = { useNativeDriver: Platform.OS !== 'web', isInteraction: false };
     const breeze = Animated.loop(Animated.sequence([
       Animated.timing(drift, { ...settings, toValue: 1, duration: 3600, easing: Easing.inOut(Easing.sin) }),
       Animated.timing(drift, { ...settings, toValue: 0, duration: 3600, easing: Easing.inOut(Easing.sin) }),
     ]));
-    const stream = Animated.loop(Animated.timing(water, { ...settings, toValue: 1, duration: 1400, easing: Easing.linear }));
-    breeze.start(); stream.start();
-    return () => { breeze.stop(); stream.stop(); };
-  }, [compact, drift, paused, reduced, water]);
-  const height = compact ? 196 : width < 600 ? Math.min(300, (width - 40) * .78) : Math.min(660, (width - 96) * .55);
-  const scale = Math.max(layout.width / 1200, layout.height / 660);
-  return <View style={[styles.scene, { height, backgroundColor: palettes[characterKey].mist }]}
-    onLayout={({ nativeEvent }) => setLayout({ width: nativeEvent.layout.width, height: nativeEvent.layout.height })}
-    accessibilityLabel="A majestic palace with a flowing river, waterfalls, royal queens, and angels among the clouds" accessible accessibilityRole="image">
-    {layout.width > 0 && <View style={{ position: 'absolute', width: 1200, height: 660, left: (layout.width - 1200 * scale) / 2, top: (layout.height - 660 * scale) / 2, transformOrigin: 'left top', transform: [{ scale }] }}>
+    const stream = Animated.loop(Animated.timing(water, { ...settings, toValue: 1, duration: 850, easing: Easing.linear }));
+    const river = Animated.loop(Animated.timing(current, { ...settings, toValue: 1, duration: 1600, easing: Easing.linear }));
+    breeze.start(); stream.start(); river.start();
+    return () => { breeze.stop(); stream.stop(); river.stop(); };
+  }, [active, compact, current, drift, enabled, paused, reduced, water]);
+  return <>
       <Image source={palaceArtwork[characterKey]} style={styles.landscape} resizeMode="stretch" accessible={false} />
-      <Animated.Image testID="river-current" source={require('../../assets/storybook/river-light.png')} style={[styles.landscape, { opacity: drift.interpolate({ inputRange: [0, 1], outputRange: [.35, .8] }), transform: [{ translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [-5, 5] }) }] }]} resizeMode="stretch" accessible={false} />
+      {[0, .5].map((offset, index) => { const phase = Animated.modulo(Animated.add(current, offset), 1); return <Animated.Image key={index} testID={index ? 'river-current-trailing' : 'river-current'} source={require('../../assets/storybook/river-light.png')} style={[styles.landscape, { opacity: phase.interpolate({ inputRange: [0, .18, .75, 1], outputRange: [0, .85, .75, 0] }), transform: [{ translateX: phase.interpolate({ inputRange: [0, 1], outputRange: [-12, 25] }) }, { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: [0, 3] }) }] }]} resizeMode="stretch" accessible={false} />; })}
       {[204, 952].map(x => <View key={x} style={{ position: 'absolute', left: x, top: 374, width: 43, height: 145, overflow: 'hidden' }}>
         <Animated.Image testID={'waterfall-' + x} source={require('../../assets/storybook/waterfall-light.png')} style={{ width: 43, height: 170, top: -22, opacity: .85, transform: [{ translateY: water.interpolate({ inputRange: [0, .8, 1], outputRange: [0, 30, 38] }) }] }} resizeMode="stretch" accessible={false} />
       </View>)}
-      {[{ x: 319, y: 40 }, { x: 789, y: 31 }].map(({ x, y }, index) => <Animated.Image key={x} source={require('../../assets/storybook/scenery-angel.png')} style={{ position: 'absolute', left: x, top: y, width: 92, height: 125, opacity: .86, transform: [{ translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, index ? 10 : -10] }) }, { rotate: index ? '8deg' : '-8deg' }] }} accessible={false} />)}
+      {[{ x: 319, y: 40 }, { x: 789, y: 31 }].map(({ x, y }, index) => <Animated.Image key={x} testID={`palace-angel-${index}`} source={require('../../assets/storybook/scenery-angel.png')} style={{ position: 'absolute', left: x, top: y, width: 92, height: 125, opacity: .86, transform: [{ translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, index ? 10 : -10] }) }, { rotate: index ? '8deg' : '-8deg' }] }} accessible={false} />)}
       {[397, 749].map((x, index) => <View key={x} style={{ position: 'absolute', left: x, top: 341 }}>
         <Animated.Image source={require('../../assets/storybook/scenery-queen.png')} style={{ width: 56, height: 76, transformOrigin: 'bottom center', transform: [{ scaleX: index ? -1 : 1 }, { rotate: drift.interpolate({ inputRange: [0, 1], outputRange: ['-1.5deg', '1.5deg'] }) }] }} accessible={false} />
         <View style={styles.balcony} />
       </View>)}
       {!compact && <>
         <WalkingCompanion characterKey={characterKey} stage={arrival} reduced={reduced} onArrival={onArrival} />
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: drift.interpolate({ inputRange: [0, 1], outputRange: [.3, .85] }) }]}>
+        <Animated.View  style={[[StyleSheet.absoluteFill, { opacity: drift.interpolate({ inputRange: [0, 1], outputRange: [.3, .85] }) }], { pointerEvents: "none" }]}>
           {([[199, 161], [973, 136], [450, 104], [739, 106], [847, 555]] as const).map(([x, y], i) => <View key={i} style={{ position: 'absolute', left: x, top: y }}><StoryIcon kind="star" size={i % 2 ? 14 : 21} color="#FFF6C5" /></View>)}
         </Animated.View>
       </>}
       {worldOverlay}
-    </View>}
-    <View pointerEvents="none" style={styles.frame} />
-  </View>;
+  </>;
 }
 
 const styles = StyleSheet.create({

@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PropsWithChildren } from 'react';
 import type { RealmCamera, Point } from './realm-camera';
 
-export interface RealmViewportProps { camera: RealmCamera; height: number; }
+export interface RealmViewportProps { camera: RealmCamera; height: number; interactive?: boolean; label?: string; }
 
-export function RealmViewport({ camera, height, children }: PropsWithChildren<RealmViewportProps>) {
+export function RealmViewport({ camera, height, children, interactive = false, label = 'Explore the Burning World. Drag to pan, pinch or use plus and minus to zoom. Arrow keys pan; zero resets.' }: PropsWithChildren<RealmViewportProps>) {
   const element = useRef<HTMLDivElement>(null);
   const [pointers] = useState(() => new Map<number, Point>());
   const [dragging, setDragging] = useState(false);
@@ -34,15 +34,17 @@ export function RealmViewport({ camera, height, children }: PropsWithChildren<Re
     if (pointers.size) camera.begin([...pointers.values()]); else { camera.end(); setDragging(false); }
   };
   const style: CSSProperties = { position: 'relative', width: '100%', height, overflow: 'hidden', background: '#211B27', border: '1px solid #A98B56', borderRadius: 7, touchAction: 'none', userSelect: 'none', cursor: dragging ? 'grabbing' : 'grab', outlineColor: '#C9A76A', boxSizing: 'border-box' };
-  return <div ref={element} data-testid="realm-viewport" role="region" aria-label="Explore the Burning World. Drag to pan, pinch or use plus and minus to zoom. Arrow keys pan; zero resets." tabIndex={0} style={style}
+  return <div ref={element} data-testid="realm-viewport" role="region" aria-label={label} tabIndex={0} style={style}
     onPointerDown={event => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (interactive && (event.target as HTMLElement).closest('button,[role="button"]')) return;
       event.currentTarget.focus({ preventScroll: true }); event.currentTarget.setPointerCapture(event.pointerId);
       pointers.set(event.pointerId, position(event)); camera.begin([...pointers.values()]); setDragging(true);
     }}
     onPointerMove={event => { if (pointers.has(event.pointerId)) { pointers.set(event.pointerId, position(event)); camera.move([...pointers.values()]); } }}
     onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}
     onKeyDown={event => {
+      if (interactive && event.target !== event.currentTarget) return;
       const key = event.key;
       if (['+', '=', '-', '0', 'Home', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) event.preventDefault();
       if (key === '+' || key === '=') camera.zoomBy(.25);
@@ -53,6 +55,6 @@ export function RealmViewport({ camera, height, children }: PropsWithChildren<Re
       else if (key === 'ArrowUp') camera.panBy(0, 60);
       else if (key === 'ArrowDown') camera.panBy(0, -60);
     }}>
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden>{children}</div>
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: interactive ? 'auto' : 'none' }} aria-hidden={interactive ? undefined : true}>{children}</div>
   </div>;
 }

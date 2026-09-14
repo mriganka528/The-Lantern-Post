@@ -1,0 +1,7 @@
+import { StyleSheet,Text,View } from 'react-native';
+import { PalaceCrest } from '../letters/antique-assets';
+import { serif } from './theme';
+export function RoyalNameplate({username,compact=false}:{username:string;compact?:boolean}) {
+  return <View testID="royal-username-plaque" style={[styles.plate,compact&&styles.compact]}><View style={[styles.inset, { pointerEvents: "none" }]}/><PalaceCrest size={compact?21:29} color="#DEC58D"/><Text accessibilityLabel={`Palace of ${username}`} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.65} style={[styles.name,compact&&{fontSize:15}]}>@{username}</Text><View style={[styles.jewel, { pointerEvents: "none" }]}/></View>;
+}
+const styles=StyleSheet.create({plate:{minHeight:46,paddingVertical:9,paddingHorizontal:15,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,borderWidth:2,borderColor:'#BDA16A',borderTopLeftRadius:20,borderTopRightRadius:20,borderBottomLeftRadius:8,borderBottomRightRadius:8,backgroundColor:'#3D5347',boxShadow:'0px 3px 0px #94733F, inset 0px 1px 0px #EBDAAC',maxWidth:'100%'},compact:{minHeight:37,paddingVertical:6,paddingHorizontal:10,gap:6},inset:{position:'absolute',inset:4,borderWidth:1,borderColor:'#947E51',borderTopLeftRadius:15,borderTopRightRadius:15,borderBottomLeftRadius:4,borderBottomRightRadius:4},name:{fontFamily:serif,fontSize:18,lineHeight:23,color:'#FFF0CB',flexShrink:1,textAlign:'center'},jewel:{width:5,height:5,backgroundColor:'#D6BA7A',transform:[{rotate:'45deg'}]}});

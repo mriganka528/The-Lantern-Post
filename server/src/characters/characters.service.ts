@@ -22,7 +22,7 @@ export class CharactersService {
 
   async palace(authProviderId: string): Promise<PalaceResponse> {
     const user = await this.prisma.user.findUnique({
-      where: { authProviderId }, select: { character: { select: characterSelect } },
+      where: { authProviderId, accountState: 'ACTIVE' }, select: { character: { select: characterSelect } },
     });
     if (!user) throw new ConflictException({ code: 'PROFILE_REQUIRED', message: 'Choose a username first.' });
     // Retired companions remain available to their existing owners.
@@ -33,14 +33,14 @@ export class CharactersService {
 
   async choose(authProviderId: string, characterId: string): Promise<SelfProfile> {
     return this.prisma.$transaction(async (transaction) => {
-      const user = await transaction.user.findUnique({ where: { authProviderId }, select: { id: true } });
+      const user = await transaction.user.findUnique({ where: { authProviderId, accountState: 'ACTIVE' }, select: { id: true } });
       if (!user) throw new ConflictException({ code: 'PROFILE_REQUIRED', message: 'Choose a username first.' });
       const row = await transaction.character.findUnique({ where: { id: characterId }, select: { ...characterSelect, isActive: true } });
       const character = row?.isActive ? serializeCharacter(row) : null;
       if (!character) throw new NotFoundException({ code: 'CHARACTER_UNAVAILABLE', message: 'Choose an available companion.' });
       // A single update saves the pair. A retry has the same result; no side effects.
       const profile = await transaction.user.update({
-        where: { authProviderId },
+        where: { authProviderId, accountState: 'ACTIVE' },
         data: { characterId: character.id, palaceTheme: character.palace.theme },
         select: selfProfileSelect,
       });

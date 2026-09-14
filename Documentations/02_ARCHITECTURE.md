@@ -1,6 +1,12 @@
 # Architecture Document
 ## Lantern Post — System Architecture
 
+Phase 10 update: confirmed pending drafts recover in the foreground using receipt lookup, current capability checks and the same UUID, with bounded backoff. Voice captions are local content until separately moderated for delivery. Support suggestions stay local and non-blocking. Retention preserves operation receipts. Optional diagnostics use server-owned consent and fixed event/error codes; a sanitized Sentry-envelope forwarder is prepared but unconfigured, with no native crash SDK or raw-content capture. See `19_PHASE_10_HANDOFF.md`.
+
+Phase 9 update: Infinity World fetches approved marker pages by viewport, keeps at most 180 client markers and groups nearby stars. Content is loaded only on opening. Explicit public serializers hide unsigned identity, including report/block responses, and both block directions filter reads. Text/voice publication uses a separate durable outcome, moderation gate and local cleanup fence. Labelled bundled samples keep the world explorable without live moderation. See `18_PHASE_9_HANDOFF.md`.
+
+Implementation update: Phase 7 uses Expo Audio on native and MediaRecorder on web, local per-owner audio bytes, and draft-v4 cleanup queues. Private upload staging is validated and copied to a sealed key before voice moderation/delivery; playback uses authorised short-lived signed URLs, without a public audio CDN. Burning audio is never uploaded. See `16_PHASE_7_HANDOFF.md`; live moderation and storage setup remain deferred. The diagrams below describe the broader planned architecture.
+
 ---
 
 ## 1. Guiding Principles

@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { LetterPreset, StationeryConfig } from '@lantern-post/shared-types';
 import { Flourish } from '../storybook/ornaments';
 import { serif } from '../storybook/theme';
@@ -21,9 +21,10 @@ export function WaxSeal({ color, size = 54 }: { color: string; size?: number }) 
 
 export function PaperFrame({ preset, children }: PropsWithChildren<{ preset: LetterPreset }>) {
   const c = preset.config;
-  return <View style={styles.paper}>
+  const { width } = useWindowDimensions();
+  return <View style={[styles.paper, width < 600 && { paddingHorizontal: 18 }]}>
     <AntiquePaperLayers preset={preset} />
-    <View style={styles.letterhead}><PalaceCrest color={c.inkColor} size={67} /><Text style={[styles.letterheadText, { color: c.inkColor }]}>FROM THE PALACE SCRIPTORIUM</Text><View style={[styles.headRule, { backgroundColor: c.ribbonColor }]} /></View>
+    <View style={styles.letterhead}><PalaceCrest color={c.inkColor} size={67} /><Text style={[styles.letterheadText, { color: c.inkColor }]}>{preset.collection === 'royal' ? 'THE ROYAL MANUSCRIPT COLLECTION' : 'FROM THE PALACE SCRIPTORIUM'}</Text><View style={[styles.headRule, { backgroundColor: c.ribbonColor }]} /></View>
     <View style={{ position: 'relative', zIndex: 1 }}>{children}</View>
     <View style={styles.ornament}><Flourish width={144} color={c.ribbonColor} /><Text style={{ fontFamily: serif, color: c.inkColor, opacity: .55, fontSize: 11, marginTop: 6 }}>— I —</Text></View>
   </View>;

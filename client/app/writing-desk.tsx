@@ -10,6 +10,7 @@ import { createBurnTransport } from '../src/letters/burn-api';
 import { createDeliveryTransport } from '../src/letters/friend-letter-api';
 import { createFriendsTransport } from '../src/friends/friends-api';
 import { usePalace } from '../src/api/use-characters';
+import { createWorldDeliveryTransport } from '../src/infinity/infinity-api';
 
 export default function WritingDeskScreen() {
   const profile = useSelfProfile();
@@ -19,13 +20,16 @@ export default function WritingDeskScreen() {
   const router = useRouter();
   const getToken = useSessionToken();
   const burnTransport = useMemo(() => createBurnTransport(getToken), [getToken]);
-  const deliveryTransport = useMemo(() => createDeliveryTransport(getToken), [getToken]);
+  const ownerId = profile.data?.user?.id ?? '';
+  const deliveryTransport = useMemo(() => createDeliveryTransport(getToken, ownerId), [getToken, ownerId]);
+  const worldTransport = useMemo(() => createWorldDeliveryTransport(getToken, ownerId), [getToken, ownerId]);
   const friendsTransport = useMemo(() => createFriendsTransport(getToken), [getToken]);
   if (profile.isPending) return <LoadingScreen />;
   if (profile.isError) return <ProfileErrorScreen error={profile.error} onRetry={() => { void profile.refetch(); }} />;
   if (!profile.data.user) return <Redirect href="/choose-username" />;
   if (!profile.data.user.characterId) return <Redirect href="/choose-character" />;
   return <WritingDesk key={profile.data.user.id} ownerId={profile.data.user.id} presets={presets.data?.presets ?? []} burnTransport={burnTransport}
+    worldTransport={worldTransport} onExploreWorld={() => router.push('/infinity')}
     deliveryTransport={deliveryTransport} friendsTransport={friendsTransport} characterKey={palace.data?.character?.key} initialRecipientId={typeof params.recipient === 'string' ? params.recipient : undefined} onFriends={() => router.push('/friends')}
     catalogUnavailable={presets.isError || (!presets.isPending && !presets.data?.presets.length)} refreshing={presets.isFetching}
     onRetryCatalog={() => { void presets.refetch(); }} onBack={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }} />;

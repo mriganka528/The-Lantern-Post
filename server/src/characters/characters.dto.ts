@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, Length, Matches } from 'class-validator';
 import type { CharacterDetails, CharacterKey, CharactersResponse, ChooseCharacterRequest, PalaceDetails, PalaceResponse, PalaceTheme } from '@lantern-post/shared-types';
 
@@ -24,6 +24,7 @@ export class CharacterDetailsDto implements CharacterDetails {
   @ApiProperty() title!: string;
   @ApiProperty() description!: string;
   @ApiProperty({ type: PalaceDetailsDto }) palace!: PalaceDetails;
+  @ApiPropertyOptional({ enum: ['royal'] }) collection?: 'royal';
 }
 
 export class CharactersResponseDto implements CharactersResponse {

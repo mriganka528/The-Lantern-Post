@@ -3,10 +3,11 @@ import { Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View } 
 import type { FriendPerson } from '@lantern-post/shared-types';
 import { CharacterArt } from '../storybook/character-art';
 import { palaceArtwork } from '../storybook/artwork';
-import { StoryButton, StoryDialog, s } from '../storybook/story-ui';
+import { StoryButton, StoryDialog, TextAction, s } from '../storybook/story-ui';
 import { StoryIcon } from '../storybook/ornaments';
 import { ink, mutedInk, serif } from '../storybook/theme';
 import { useMotionPreference } from '../storybook/use-reduced-motion';
+import { RoyalNameplate } from '../storybook/royal-nameplate';
 
 export function FriendGate({ person, onPress, compact = false }: { person: FriendPerson; onPress: () => void; compact?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${person.username}'s friendship gate`} onPress={onPress} style={({ pressed }) => [styles.card, compact && styles.compact, pressed && { opacity: .8 }]}>
@@ -15,12 +16,12 @@ export function FriendGate({ person, onPress, compact = false }: { person: Frien
       <View style={styles.key}><StoryIcon kind="key" size={20} /></View>
       {person.character && <View style={styles.companion}><CharacterArt characterKey={person.character.key} size={compact ? 40 : 51} /></View>}
     </View>
-    <Text style={styles.name} numberOfLines={2}>@{person.username}</Text>
+    <RoyalNameplate username={person.username} compact />
     {!compact && <Text style={styles.palace}>{person.character?.palace.name ?? 'A little palace in the clouds'}</Text>}
   </Pressable>;
 }
 
-export function FriendGateVisit({ person, newlyAccepted = false, onClose, onWrite }: { person: FriendPerson; newlyAccepted?: boolean; onClose: () => void; onWrite?: () => void }) {
+export function FriendGateVisit({ person, newlyAccepted = false, onClose, onWrite, onBlock, onChat }: { person: FriendPerson; newlyAccepted?: boolean; onClose: () => void; onWrite?: () => void; onBlock?: () => void; onChat?: () => void }) {
   const { reduced, ready } = useMotionPreference();
   const [open] = useState(() => new Animated.Value(0));
   const [laidOut, setLaidOut] = useState(false);
@@ -39,6 +40,8 @@ export function FriendGateVisit({ person, newlyAccepted = false, onClose, onWrit
     <Text style={styles.visitName}>@{person.username}</Text>
     <Text style={s.body}>{newlyAccepted ? 'Your palaces are now connected. A little friendship, with a place to call home.' : person.character?.palace.description ?? 'Another little light in your circle of friends.'}</Text>
     {onWrite && <StoryButton label={`Write to ${person.username}`} onPress={onWrite} />}
+    {onChat && <StoryButton label={`Chat with ${person.username}`} onPress={onChat} secondary={Boolean(onWrite)} />}
+    {onBlock && <TextAction label={`Block ${person.username}`} onPress={onBlock} />}
   </StoryDialog>;
 }
 const styles = StyleSheet.create({

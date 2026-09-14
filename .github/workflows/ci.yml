@@ -46,6 +46,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:hosted-api
       - run: npm run build:api
       - run: npm run test:burn-db --workspace @lantern-post/api
         env:
@@ -56,6 +57,37 @@ jobs:
       - run: npm run test:private-letters-db --workspace @lantern-post/api
         env:
           PRIVATE_LETTERS_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:voice-db --workspace @lantern-post/api
+        env:
+          VOICE_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:safety-db --workspace @lantern-post/api
+        env:
+          SAFETY_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:infinity-db --workspace @lantern-post/api
+        env:
+          INFINITY_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:hardening-db --workspace @lantern-post/api
+        env:
+          HARDENING_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run load:infinity
+      - run: npm run test:chat-db --workspace @lantern-post/api
+        env:
+          CHAT_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:privacy-db --workspace @lantern-post/api
+        env:
+          PRIVACY_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run test:live-palace-db --workspace @lantern-post/api
+        env:
+          LIVE_PALACE_TEST_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - run: npm run load:infinity:db
+        env:
+          INFINITY_LOAD_DATABASE_URL: postgresql://lantern-post:lantern-post_ci@localhost:5432/lantern-post_ci?schema=public
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: infinity-load-rehearsal
+          path: .cache/phase11-review/*load.json
+          if-no-files-found: ignore
       - run: npm run smoke:api
       - run: npm run export:mobile -- --platform android --output-dir dist/android
       - run: npm run export:mobile -- --platform ios --output-dir dist/ios

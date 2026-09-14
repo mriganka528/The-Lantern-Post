@@ -11,10 +11,10 @@ const COLUMNS = 30;
 // reveals a receding burn edge without shrinking/stretching the letter and
 // keeps all movement on React Native's transform/opacity animation driver.
 export function ProgressiveBurnLetter({ progress, preset }: { progress: Animated.Value; preset: LetterPreset | null }) {
-  return <Animated.View testID="burn-envelope" pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.letter, {
+  return <Animated.View testID="burn-envelope"  aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[[styles.letter, {
     opacity: progress.interpolate({ inputRange: [0, .87, .95, 1], outputRange: [1, 1, 0, 0] }),
     transform: [{ translateY: progress.interpolate({ inputRange: [0, .16, 1], outputRange: [0, 110, 110] }) }, { rotate: progress.interpolate({ inputRange: [0, .16, .65, 1], outputRange: ['-4deg', '1deg', '-3deg', '-6deg'] }) }],
-  }]}>
+  }], { pointerEvents: "none" }]}>
     <View style={styles.sheetClip}>
       {Array.from({ length: COLUMNS }, (_, i) => {
         const columnWidth = WIDTH / COLUMNS;
@@ -26,9 +26,9 @@ export function ProgressiveBurnLetter({ progress, preset }: { progress: Animated
         // antialiasing seams when the entire realm is scaled down on a phone.
         return <Animated.View key={i} testID={`paper-burn-column-${i}`} style={{ position: 'absolute', left: i * columnWidth, top: 0, width: columnWidth + 2, height: HEIGHT, overflow: 'hidden', transform: [{ translateY: Animated.multiply(loss, -1) }] }}>
           <Animated.View style={{ position: 'absolute', left: -i * columnWidth, top: 0, width: WIDTH, height: HEIGHT, transform: [{ translateY: loss }] }}>
-            <Image source={require('../../assets/storybook/paper-silhouette.png')} style={[styles.paperLayer, { tintColor: preset?.config.paperColor ?? '#F0DDB5' }]} resizeMode="stretch" accessible={false} />
+            <Image source={require('../../assets/storybook/paper-silhouette.png')} style={styles.paperLayer} resizeMode="stretch" accessible={false} tintColor={preset?.config.paperColor ?? '#F0DDB5'} />
             <Image source={require('../../assets/storybook/paper-texture-parchment.png')} style={[styles.paperLayer, { opacity: .7 }]} resizeMode="stretch" accessible={false} />
-            <Image source={require('../../assets/storybook/ritual-engraving.png')} style={[styles.paperLayer, { tintColor: preset?.config.inkColor ?? '#62472C', opacity: .74 }]} resizeMode="stretch" accessible={false} />
+            <Image source={require('../../assets/storybook/ritual-engraving.png')} style={[styles.paperLayer, { opacity: .74 }]} resizeMode="stretch" accessible={false} tintColor={preset?.config.inkColor ?? '#62472C'} />
             <View style={{ position: 'absolute', right: 42, top: 6, bottom: 5, width: 13, backgroundColor: preset?.config.ribbonColor ?? '#A88E5C', opacity: .42 }} />
           </Animated.View>
           <Animated.View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 12, backgroundColor: '#30241E', opacity: scorch }} />

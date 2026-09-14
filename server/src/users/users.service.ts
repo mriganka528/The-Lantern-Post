@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import type { SelfProfile } from '@lantern-post/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import { selfProfileSelect, serializeSelfProfile } from './profile';
+import { accountGone, deletionSubjectHash } from '../account/account-access';
 
 @Injectable()
 export class UsersService {
@@ -10,6 +11,7 @@ export class UsersService {
 
   // authProviderId must come from a verified managed-auth identity, never a DTO.
   async findSelf(authProviderId: string): Promise<SelfProfile | null> {
+    if (await this.prisma.accountDeletion.findUnique({ where: { subjectHash: deletionSubjectHash(authProviderId) }, select: { id: true } })) accountGone();
     const profile = await this.prisma.user.findUnique({
       where: { authProviderId },
       select: selfProfileSelect,
@@ -32,10 +34,10 @@ export class UsersService {
     if (existing) return this.existingProfile(existing, canonicalUsername);
 
     try {
-      const profile = await this.prisma.user.create({
-        data: { authProviderId, username: canonicalUsername },
-        select: selfProfileSelect,
-      });
+      const profile = await this.prisma.$transaction(async tx => {
+        if (await tx.accountDeletion.findUnique({ where: { subjectHash: deletionSubjectHash(authProviderId) }, select: { id: true } })) accountGone();
+        return tx.user.create({ data: { authProviderId, username: canonicalUsername }, select: selfProfileSelect });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       return serializeSelfProfile(profile);
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {

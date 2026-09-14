@@ -1,8 +1,9 @@
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { PropsWithChildren } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Flourish, LanternMark } from '../storybook/ornaments';
 import { gold, ink, line, paper, serif } from '../storybook/theme';
+import { PolicyLinks } from '../legal/policy-links';
 
 export function AuthPage({ title, subtitle, children }: PropsWithChildren<{ title: string; subtitle?: string }>) {
   return (
@@ -16,6 +17,7 @@ export function AuthPage({ title, subtitle, children }: PropsWithChildren<{ titl
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             <View style={styles.form}>{children}</View>
             <View style={styles.ornamentBottom}><Flourish /></View>
+            <PolicyLinks />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -49,7 +51,7 @@ export function FormError({ message }: { message: string | null }) {
 }
 
 export function LoadingScreen() {
-  return <AuthPage title="Opening your gate…"><ActivityIndicator size="large" color="#73563C" accessibilityLabel="Loading" /></AuthPage>;
+  return <AuthPage title="Opening your gate…"><Image source={require('../../assets/storybook/app-foreground.png')} style={{ width: 128, height: 128, alignSelf: 'center' }} resizeMode="contain" accessible={false} /><ActivityIndicator size="large" color="#73563C" accessibilityLabel="Loading" /></AuthPage>;
 }
 
 export const styles = StyleSheet.create({

@@ -1,6 +1,7 @@
 // Offline browser review. Production components and local draft storage are
 // real; the release transport is a controlled, content-free receipt fixture.
 import assert from 'node:assert/strict';
+import { readStoredLetter, waitStoredStage } from './browser-letter-storage.mjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
@@ -35,7 +36,7 @@ const character = ${JSON.stringify(character)};
 const fixture = { mode: 'normal', sent: [], blocked: false, blockPrepare: false, release: () => {} };
 const originalSet = Storage.prototype.setItem;
 Storage.prototype.setItem = function(key, value) {
-  if (key.startsWith('lantern-draft-v1-') && (fixture.blockPrepare || (fixture.blocked && JSON.parse(value).stage === 'burned'))) throw new Error('Synthetic storage failure');
+  if ((key.startsWith('lantern-draft-v1-') || key.startsWith('lantern-letter-v1-')) && (fixture.blockPrepare || (fixture.blocked && JSON.parse(value).stage === 'burned'))) throw new Error('Synthetic storage failure');
   return originalSet.call(this, key, value);
 };
 function transport(owner) {
@@ -94,7 +95,7 @@ try {
   await page.goto(pathToFileURL(resolve(output, 'index.html')).href);
   const words = 'Dear little world,\n\nSome thoughts belong to the fire. I am ready to lay this one down, and take a little peace home with me.';
   const letter = page.getByRole('textbox', { name: 'Your letter' });
-  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('lantern-draft-v1-review-a')));
+  const stored = () => readStoredLetter(page, 'review-a');
   const count = () => page.evaluate(() => Number(localStorage.getItem('fixture-submit-count') || 0));
   const viewport = page.getByTestId('realm-viewport');
   const zoom = async () => Number.parseFloat(await page.getByTestId('realm-zoom-level').innerText());
@@ -119,10 +120,24 @@ try {
     await letter.waitFor(); assert.equal(await letter.inputValue(), ''); await letter.fill(text);
     await toConfirmation();
   }
+  // Fresh page, no motion toggle: the scenery must already be alive.
+  await page.waitForFunction(() => Boolean(window.__phase4));
+  await page.evaluate(() => window.__phase4.setScreen('home')); await page.waitForFunction(() => window.__phase4.screen === 'home'); await atHome();
+  const palaceMotion = page.getByRole('switch', { name: 'Ambient palace animation' });
+  assert.equal(await palaceMotion.getAttribute('aria-checked'), 'true');
+  const movingStyles = () => page.evaluate(() => ['waterfall-204', 'palace-angel-0', 'river-current'].map(id => getComputedStyle(document.querySelector(`[data-testid="${id}"]`)).transform));
+  const initialScenery = await movingStyles();
+  await page.waitForFunction(before => ['waterfall-204', 'palace-angel-0', 'river-current'].every((id, i) => getComputedStyle(document.querySelector(`[data-testid="${id}"]`)).transform !== before[i]), initialScenery, { timeout: 3000 });
+  await palaceMotion.click(); await page.waitForTimeout(80); const stoppedScenery = await movingStyles(); await page.waitForTimeout(350); assert.deepEqual(await movingStyles(), stoppedScenery);
+  await page.reload(); await page.waitForFunction(() => Boolean(window.__phase4)); await page.evaluate(() => window.__phase4.setScreen('home')); await page.waitForFunction(() => window.__phase4.screen === 'home'); await atHome();
+  assert.equal(await palaceMotion.getAttribute('aria-checked'), 'false', 'The manually paused setting survives navigation and reload.');
+  await palaceMotion.click(); const resumedScenery = await movingStyles();
+  await page.waitForFunction(before => getComputedStyle(document.querySelector('[data-testid="waterfall-204"]')).transform !== before[0], resumedScenery, { timeout: 3000 });
+  await page.getByRole('button', { name: /Open the writing desk/ }).click();
   await letter.waitFor(); await letter.fill(words);
   for (const p of presets) { const radio = page.getByRole('radio', { name: p.displayName, exact: true }); await radio.click(); assert.equal(await radio.getAttribute('aria-checked'), 'true'); }
   await page.getByRole('radio', { name: 'Royal ivory', exact: true }).click();
-  await page.getByText('Lantern Post', { exact: true }).scrollIntoViewIfNeeded();
+  await page.getByText('A letter, by candlelight.', { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, '01-antique-writing-desk.png') });
   await toConfirmation();
   await page.screenshot({ path: resolve(output, '02-burning-world-confirmation.png') });
@@ -133,6 +148,8 @@ try {
   assert.equal(await page.getByTestId('realm-ambient-flames').count(), 1);
   assert.equal(await opacity('burn-flames'), 0);
   const motion = page.getByRole('switch', { name: 'Ambient fire animation' });
+  const initialGuardian = await page.getByTestId('fire-guardian').evaluate(e => getComputedStyle(e).transform);
+  await page.waitForFunction(before => getComputedStyle(document.querySelector('[data-testid="fire-guardian"]')).transform !== before, initialGuardian, { timeout: 3000 });
   await motion.click(); assert.equal(await motion.getAttribute('aria-checked'), 'false');
   const stillGuardian = await page.getByTestId('fire-guardian').evaluate(e => getComputedStyle(e).transform);
   await page.waitForTimeout(220);
@@ -195,7 +212,12 @@ try {
   assert.equal(await opacity('burn-envelope'), 0); assert.equal(await opacity('settled-ashes'), 1);
   await page.waitForTimeout(1200); assert.equal(await page.evaluate(() => window.__phase4.screen), 'writing', 'The completed realm stays open for exploration.');
   await viewport.screenshot({ path: resolve(output, '08-settled-ashes.png') });
-  await atHome(); assert.equal((await stored()).stage, 'writing'); assert.equal((await stored()).text, '');
+  await page.getByRole('button', { name: 'Write another letter', exact: true }).click();
+  await letter.waitFor(); assert.equal(await letter.inputValue(), ''); assert.equal((await stored()).stage, 'writing');
+  await letter.fill('A fresh page after the fire.'); await page.getByRole('button', { name: 'Seal my letter' }).click();
+  await page.getByRole('button', { name: 'Let it go to the fire', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: 'Burn this letter', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Open my letter again', exact: true }).click(); await letter.fill('');
+  await page.getByRole('button', { name: 'My palace', exact: true }).click(); await atHome();
   // Finishing an old account's request must not clear or navigate a new account.
   await newLetter(); await page.evaluate(() => { window.__phase4.fixture.mode = 'hold'; });
   await page.getByRole('button', { name: 'Burn this letter', exact: true }).click();
@@ -203,15 +225,16 @@ try {
   await page.evaluate(() => window.__phase4.setOwner('review-b'));
   await letter.fill('This page belongs to the second account.');
   await page.evaluate(() => window.__phase4.fixture.release());
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('lantern-draft-v1-review-a')).stage === 'burned');
+  await waitStoredStage(page, 'review-a', 'burned');
   assert.equal(await letter.inputValue(), 'This page belongs to the second account.');
   assert.equal(await page.evaluate(() => window.__phase4.screen), 'writing');
-  await page.evaluate(() => window.__phase4.setOwner('review-a')); await atHome();
+  await page.evaluate(() => window.__phase4.setOwner('review-a')); await letter.waitFor(); assert.equal(await letter.inputValue(), '');
+  await page.getByRole('button', { name: 'My palace', exact: true }).click(); await atHome();
   // Lost acknowledgement, reload, and receipt-only recovery.
   await newLetter(); await page.evaluate(() => { window.__phase4.fixture.mode = 'lost'; });
   const beforeLost = await count(); await page.getByRole('button', { name: 'Burn this letter', exact: true }).click();
   await page.getByRole('button', { name: 'Retry this release', exact: true }).waitFor(); assert.equal((await stored()).stage, 'burn-pending');
-  await page.reload(); await atHome(); assert.equal(await count(), beforeLost + 1); assert.equal((await stored()).text, '');
+  await page.reload(); await page.getByRole('button', { name: 'Skip the burn animation', exact: true }).click(); await atHome(); assert.equal(await count(), beforeLost + 1); assert.equal((await stored()).text, '');
   // Durable rejection preserves the sealed letter.
   await newLetter(); await page.evaluate(() => { window.__phase4.fixture.mode = 'reject'; });
   await page.getByRole('button', { name: 'Burn this letter', exact: true }).click();
@@ -226,7 +249,7 @@ try {
   assert.equal(await page.getByTestId('burn-flames').evaluate(e => getComputedStyle(e).opacity), '0');
   await page.evaluate(() => { window.__phase4.fixture.blocked = false; });
   await page.getByRole('button', { name: 'Finish clearing this letter' }).click();
-  await page.getByRole('button', { name: 'Skip the burn animation' }).click(); await atHome(); assert.equal((await stored()).text, '');
+  await page.getByRole('button', { name: 'My palace', exact: true }).click(); await atHome(); assert.equal((await stored()).stage, 'burned'); assert.equal((await stored()).text, '');
   // Phone styling and reduced-motion release.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: /Open the writing desk/ }).click(); await letter.fill(words);
@@ -269,6 +292,7 @@ try {
   assert.ok(completedPhoneBox.y >= 0 && completedPhoneBox.y + completedPhoneBox.height <= 844, 'The confirmed ritual is brought into view on a phone.');
   assert.equal(await opacity('burn-envelope'), 0); assert.equal(await opacity('settled-ashes'), 1);
   await page.screenshot({ path: resolve(output, '09-finished-realm-phone.png') });
-  await atHome(); assert.equal((await stored()).text, ''); assert.deepEqual(errors, []);
-  console.log('Phase 4 browser checks passed: presets, safe release/recovery, zoom bounds, guardian/letter focus, mouse/wheel/keyboard/touch controls, ambient pause, progressive paper erosion, visible flames/ash, lingering completion, skip, phone layout/scroll, and reduced motion.');
+  await page.reload(); await letter.waitFor(); assert.equal(await letter.inputValue(), ''); assert.equal((await stored()).stage, 'writing');
+  assert.equal(await page.getByText('The Burning World', { exact: true }).count(), 0); assert.deepEqual(errors, []);
+  console.log('Phase 4 browser checks passed: cold-start ambient motion, persistent pause/resume, fresh writing after all burn exits/reload, presets, safe release/recovery, zoom/touch, progressive fire/ash, skip and reduced motion.');
 } finally { await browser.close(); }

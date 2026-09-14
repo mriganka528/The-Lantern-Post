@@ -38,6 +38,13 @@ enum DeliveryOutcome {
   REJECTED
 }
 
+enum VoiceAssetStatus {
+  UPLOADING
+  READY
+  ATTACHED
+  DELETED
+}
+
 enum FriendRequestStatus {
   PENDING
   ACCEPTED
@@ -69,6 +76,15 @@ model User {
   palaceTheme   String?    // simple config key for MVP; expand to a Palace model post-MVP
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  diagnosticsEnabled Boolean @default(false)
+  diagnosticsKey String? @unique
+  diagnosticsSince DateTime?
+  accountState String @default("ACTIVE")
+  realtimeSequence Int @default(0)
+  palaceEvents PalaceEvent[]
+  accountDeletion AccountDeletion?
+  driveConnection DriveConnection?
+  driveLinks DriveLink[]
 
   sentLetters       Letter[]           @relation("SentLetters")
   receivedLetters   Letter[]           @relation("ReceivedLetters")
@@ -82,6 +98,13 @@ model User {
   burnReceipts      BurnReceipt[]
   friendNotifications FriendNotification[]
   deliveryReceipts DeliveryReceipt[]
+  worldReceipts WorldReceipt[]
+  voiceAssets VoiceAsset[]
+  firstChatThreads ChatThread[] @relation("FirstChatUser")
+  secondChatThreads ChatThread[] @relation("SecondChatUser")
+  chatMessages ChatMessage[]
+  chatReceipts ChatReceipt[]
+  chatReports ChatReport[]
 
   @@index([username])
 }
@@ -93,6 +116,62 @@ model Character {
   assetUrl    String            // CDN URL to sprite/animation bundle
   isActive    Boolean @default(true)  // curated set can be toggled without deleting history
   users       User[]
+}
+
+model ChatThread {
+  id String @id
+  firstUserId String
+  firstUser User @relation("FirstChatUser", fields: [firstUserId], references: [id])
+  secondUserId String
+  secondUser User @relation("SecondChatUser", fields: [secondUserId], references: [id])
+  nextSequence Int @default(0)
+  createdAt DateTime @default(now())
+  messages ChatMessage[]
+  @@unique([firstUserId, secondUserId])
+}
+
+model ChatMessage {
+  id String @id
+  threadId String
+  thread ChatThread @relation(fields: [threadId], references: [id])
+  sequence Int
+  senderId String
+  sender User @relation(fields: [senderId], references: [id])
+  text String
+  moderationPassed Boolean?
+  moderationSkipped Boolean @default(false)
+  erasedAt DateTime?
+  createdAt DateTime @default(now())
+  reports ChatReport[]
+  @@unique([threadId, sequence])
+}
+
+// Content-free, durable outcomes for explicitly confirmed chat sends/cancels.
+model ChatReceipt {
+  id String @id
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id])
+  peerId String
+  outcome DeliveryOutcome
+  reason String?
+  messageId String? @unique
+  sequence Int?
+  createdAt DateTime @default(now())
+  @@index([ownerId, createdAt])
+}
+
+model ChatReport {
+  id String @id
+  messageId String
+  message ChatMessage @relation(fields: [messageId], references: [id])
+  reporterId String
+  reporter User @relation(fields: [reporterId], references: [id])
+  reason ReportReason
+  detail String?
+  status ReportStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  @@unique([messageId, reporterId])
+  @@index([status, createdAt])
 }
 
 model Preset {
@@ -143,8 +222,11 @@ model Letter {
   type            LetterType
   destinationType LetterDestinationType
   textContent     String?           // for TEXT type
-  audioUrl        String?           // for VOICE type, CDN/signed URL reference
+  audioUrl        String?           // legacy; current voice letters use private VoiceAsset and fresh playback grants
   audioDurationMs Int?
+  voiceCaption    String?
+  voiceAssetId    String? @unique
+  voiceAsset      VoiceAsset? @relation(fields: [voiceAssetId], references: [id])
 
   presetId        String?
   preset          Preset?  @relation(fields: [presetId], references: [id])
@@ -154,10 +236,13 @@ model Letter {
   posY            Float?             // Infinity World coordinate
 
   status          LetterStatus @default(SENDING)
-  moderationPassed Boolean?          // null = pending, true/false = result
+  moderationPassed Boolean?          // null = pending or explicitly skipped, true/false = result
+  moderationSkipped Boolean @default(false) // explicit unreviewed release, never provider approval
   moderationCheckedAt DateTime?
   stationeryJson  Json?              // snapshot of the validated stationery at delivery
   readAt          DateTime?          // first opening by the recipient
+  senderDeletedAt DateTime?
+  recipientDeletedAt DateTime?
 
   createdAt       DateTime @default(now())
   deliveredAt     DateTime?
@@ -171,6 +256,32 @@ model Letter {
   @@index([recipientId, status])           // friend gate inbox queries
   @@index([hardDeleteAfter])               // sweep job
   @@index([senderId, destinationType, status, deliveredAt])
+  @@index([destinationType, status, moderationPassed, posX, posY], map: "Letter_infinity_viewport_idx")
+}
+
+model VoiceAsset {
+  id          String @id
+  ownerId     String
+  owner       User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recipientId String?
+  destinationType LetterDestinationType @default(FRIEND)
+  requestId   String
+  storageKey  String @unique
+  mimeType    String
+  byteLength  Int
+  durationMs  Int
+  sha256      String?
+  status      VoiceAssetStatus @default(UPLOADING)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  purgeAfter  DateTime?
+  stageClearedAt DateTime?
+  contentClearedAt DateTime?
+  letter      Letter?
+
+  @@unique([ownerId, requestId])
+  @@index([status, purgeAfter])
+  @@index([ownerId, status, expiresAt])
 }
 
 model FriendRequest {
@@ -198,8 +309,9 @@ model FriendNotification {
   requestId   String?
   request     FriendRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
   letterId    String?
+  chatMessageId String?
   letter      Letter? @relation(fields: [letterId], references: [id], onDelete: Cascade)
-  kind        String // FRIEND_REQUEST | FRIEND_ACCEPTED | LETTER_DELIVERED; checked in SQL
+  kind        String // FRIEND_REQUEST | FRIEND_ACCEPTED | LETTER_DELIVERED | CHAT_MESSAGE; checked in SQL
   createdAt   DateTime @default(now())
   availableAt DateTime @default(now())
   claimedUntil DateTime?
@@ -209,6 +321,21 @@ model FriendNotification {
   @@index([completedAt, availableAt])
 }
 
+// Account-private, content-free refresh/arrival events. Sequence allocation is
+// committed with the mutation, so a later event cannot slip behind a cursor.
+model PalaceEvent {
+  id String @id
+  ownerId String
+  owner User @relation(fields:[ownerId], references:[id], onDelete:Cascade)
+  sequence Int
+  kind String
+  peerId String?
+  itemId String?
+  createdAt DateTime @default(now())
+  @@unique([ownerId,sequence])
+  @@index([createdAt])
+}
+
 model Block {
   id          String   @id @default(cuid())
   blockerId   String
@@ -216,6 +343,7 @@ model Block {
   blockedId   String
   blocked     User     @relation("Blocked", fields: [blockedId], references: [id])
   createdAt   DateTime @default(now())
+  anonymousAlias String? @unique
 
   @@unique([blockerId, blockedId])
 }
@@ -233,6 +361,32 @@ model Report {
   status      ReportStatus @default(OPEN)
   createdAt   DateTime @default(now())
   resolvedAt  DateTime?
+
+  @@unique([reporterId, letterId])
+  @@index([status, createdAt])
+}
+
+// Short-lived, shared request budgets. The key hashes the verified subject,
+// operation scope and time bucket; no tokens, IPs or letter content are stored.
+model RequestWindow {
+  id        String @id
+  count     Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model WorldReceipt {
+  id        String @id
+  ownerId   String
+  owner     User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  outcome   DeliveryOutcome
+  isSigned  Boolean
+  reason    String?
+  letterId  String? @unique
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
 }
 
 model PushToken {
@@ -244,4 +398,60 @@ model PushToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model DiagnosticsEvent {
+  id            String @id
+  actorKey      String
+  name          String
+  platform      String
+  code          String?
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+  exportedAt    DateTime?
+  attempts      Int @default(0)
+  availableAt   DateTime @default(now())
+
+  @@index([actorKey, occurredAt])
+  @@index([exportedAt, availableAt])
+}
+
+// Durable, content-free deletion status and external-cleanup outbox.
+model AccountDeletion {
+  id String @id
+  ownerId String @unique
+  owner User @relation(fields: [ownerId], references: [id])
+  subjectHash String @unique
+  providerSubject String?
+  diagnosticsKey String?
+  state String @default("PENDING")
+  requestedAt DateTime @default(now())
+  completedAt DateTime?
+  availableAt DateTime @default(now())
+  claimedUntil DateTime?
+  attempts Int @default(0)
+  errorCode String?
+  @@index([state, availableAt])
+}
+
+model DriveConnection {
+  ownerId String @id
+  owner User @relation(fields: [ownerId], references: [id])
+  encryptedRefreshToken String
+  connectedAt DateTime @default(now())
+  activeUntil DateTime?
+}
+
+model DriveLink {
+  id String @id
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id])
+  stateHash String @unique
+  encryptedVerifier String?
+  encryptedCleanupToken String?
+  exchangingUntil DateTime?
+  status String @default("PENDING")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([ownerId, expiresAt])
 }

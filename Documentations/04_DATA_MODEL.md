@@ -1,6 +1,14 @@
 # Data Model & Prisma Schema
 ## Lantern Post
 
+Phase 10 adds the Royal catalogue, optional `Letter.voiceCaption`, private opt-in diagnostic preferences and constrained `DiagnosticsEvent` rows. Diagnostic actor keys are random per consent epoch; opt-out clears events. Draft v6 adds voice captions while migrating versions 1–5. The retention sweep clears due deleted content and old unreported audit stubs while preserving all operation receipts. See `19_PHASE_10_HANDOFF.md` and the executable Prisma schema.
+
+Phase 9 adds owner-scoped `WorldReceipt` outcomes, random public letter IDs, a viewport index/coordinate constraints, destination-bound voice assets and anonymous block aliases. Public responses explicitly omit sender identity unless signed. Draft v5 adds a public intent/receipt while preserving v1–v4 recovery. See `18_PHASE_9_HANDOFF.md`; the executable schema remains `server/prisma/schema.prisma`.
+
+Phase 8 adds short-lived `RequestWindow` budgets shared across server processes, unique recipient/letter reports and no-self block/report constraints. Blocking changes friendship to `BLOCKED`; unblocking does not restore acceptance. See `17_PHASE_8_HANDOFF.md` and the executable schema.
+
+Phase 7 adds `VoiceAsset` (`UPLOADING`, `READY`, `ATTACHED`, `DELETED`) with owner/request uniqueness, recipient binding, bounded audio metadata, private object keys and cleanup timestamps. `Letter.voiceAssetId` replaces persistent URLs for private voice delivery; authorised playback URLs are generated when opened. Draft-v4 audio deletion queues are local client data. The executable schema is `server/prisma/schema.prisma`; see `16_PHASE_7_HANDOFF.md` for its migration and lifecycle. The foundational model below remains historical context.
+
 Phase 4 adds a `BurnOutcome` enum and a `BurnReceipt` model linked to `User`, for durable owner-scoped release outcomes without retaining letter content. The executable current schema is `server/prisma/schema.prisma`; details and migration behaviour are in `12_PHASE_4_HANDOFF.md`. The foundational model below predates that addition.
 
 This is a starting schema — refine field names/enums as you build, but the shape (entities + relations) should hold.
@@ -189,7 +197,17 @@ model PushToken {
 
 - **Friendship modeled via `FriendRequest`**, not a separate `Friendship` table — a pair is "friends" when a request exists with `status = ACCEPTED`. Simpler for MVP; split into a dedicated `Friendship` join table later if you need friendship-specific metadata (e.g. custom gate art per friend).
 - **`posX`/`posY` on `Letter`** rather than a separate spatial table — keeps the bounding-box query a single indexed lookup. Assign coordinates server-side on send (semi-random within current "world bounds") so users can't claim/grief positions.
-- **`isSigned`** determines whether the API is allowed to serialize `senderId`/username in the public Infinity World response — enforce this in the API layer, not just the client.
+- **`isSigned`** permits a public username signature only. Public markers/readers never expose `senderId`, account IDs, companion details or private social cards. Enforce this in the API layer, not just the client.
 - **Soft-delete pattern** (`softDeletedAt`, `hardDeleteAfter`) covers both the Burning World flow and moderation removals with one mechanism. A scheduled job purges `textContent`/`audioUrl` (and deletes the object storage file) once `hardDeleteAfter` passes.
 - **`Character` and `Preset` are admin-managed content tables**, not user-generated — keeps art quality curated and makes adding seasonal content a data change, not a code change.
 - **Palace is intentionally minimal in v1** (`palaceTheme` string on `User`) — promote to a full `Palace` model when you build the decoration/customization feature post-MVP.
+
+## Phase 11 local correspondence cabinet
+
+The social refinement also adds `ChatThread` (two canonical participants and a transactionally incremented sequence), moderated `ChatMessage`, content-free owner/request/peer-bound `ChatReceipt`, and recipient-owned `ChatReport`. The live transcript is bounded in memory; only unsent/confirmed-pending chat drafts persist locally, keyed by an encoded account/peer tuple. Current friendship and both block directions gate all history/live reads. See `26_SOCIAL_PARLOUR_HANDOFF.md`; future account-erasure work must handle these relations and retention explicitly.
+
+The cabinet adds no server table or migration. Each account/device can keep independent v6 `LetterDraft` documents. The existing `lantern-draft-v1-{encodedOwner}` key remains the original entry, preserving all v1–v6 upgrade and receipt recovery behaviour. New letters use `lantern-letter-v1-{encodedOwner}--{UUID}` keys. Each document has its own generation ID, kind, stationery snapshot, content, voice deletion queue and confirmed-operation UUID. The selected-document pointer is optional UI state; enumeration does not depend on a shared mutable index.
+
+Storage is browser localStorage / native app documents; voice bytes remain in the existing account-scoped IndexedDB / app document store. The cabinet displays at most 12 entries at once, with further pages on request. Voice captions, recipient/account identifiers, and pending/completed text are excluded from list labels. Completed letters keep only their cleared document and durable receipt; they do not become a content archive.
+
+Opening a different page remounts its editor/controller. In-flight receipts remain attached to the original document. Only the active editor may recover a confirmed network operation; a separate foreground, local-only worker clears queued recordings for inactive owned letters. Failed deletions remain durably queued. An explicit external copy is generated from an owned writing/sealed document and never mutates its stage or sends through the delivery API.

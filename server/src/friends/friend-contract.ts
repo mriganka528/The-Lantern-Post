@@ -23,6 +23,7 @@ export function relationship(row: Pick<ConnectionRow, 'status' | 'fromUserId' | 
   return 'UNAVAILABLE';
 }
 export const notBlocked = (ownerId: string): Prisma.UserWhereInput => ({
+  accountState: 'ACTIVE',
   blockedUsers: { none: { blockedId: ownerId } }, blockedByUsers: { none: { blockerId: ownerId } },
 });
 export function visibleConnections(ownerId: string): Prisma.FriendRequestWhereInput {

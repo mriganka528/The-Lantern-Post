@@ -1,0 +1,7 @@
+import { Pressable, Text, View } from 'react-native';
+import { s, TextAction } from '../storybook/story-ui';
+import { useDiagnostics } from './diagnostics-context';
+export function DiagnosticsSettings() {
+  const diagnostics = useDiagnostics();
+  return <View style={{ gap: 10, paddingTop: 14, borderTopWidth: 1, borderColor: '#D3C19E' }}><Pressable accessibilityRole="switch" accessibilityLabel="Share basic app diagnostics" accessibilityState={{ checked: diagnostics.enabled, disabled: diagnostics.busy || !diagnostics.ready }} aria-checked={diagnostics.enabled} disabled={diagnostics.busy || !diagnostics.ready} onPress={() => { void diagnostics.configure(!diagnostics.enabled); }} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={s.body}>Share basic app diagnostics · {diagnostics.enabled ? 'On' : 'Off'}</Text></Pressable><Text style={s.body}>Optional usage events and fixed error codes help improve Lantern Post. Your letters, recordings, usernames and error messages are never included. Turning this off clears your stored diagnostic events.</Text>{diagnostics.error && <><Text role="alert" style={s.body}>This preference could not be confirmed. If you turned diagnostics off, they stay paused on this device until saving succeeds.</Text><TextAction label="Retry diagnostics preference" disabled={diagnostics.busy} onPress={() => { void diagnostics.retry(); }} /></>}</View>;
+}

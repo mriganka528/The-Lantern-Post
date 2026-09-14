@@ -40,7 +40,7 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
   }
 
   return <StoryShell chapter="THE FIRST PAGE OF YOUR STORY" actions={<>{onBack && <TextAction label="My palace" onPress={onBack} disabled={busy} />}<TextAction label="Account" onPress={onAccount} disabled={busy} /></>}>
-    <StoryHeading eyebrow="CHAPTER I · A KINDRED SPIRIT" title="Every story begins with a companion." subtitle="Six little souls, six places to call home. Choose the one that feels a little like you." />
+    <StoryHeading eyebrow="CHAPTER I · A KINDRED SPIRIT" title="Every story begins with a companion." subtitle="Kindred souls and extraordinary palaces. Choose the one that feels a little like you — every companion is included." />
     <View style={[styles.layout, wide && styles.wideLayout]}>
       <View style={[styles.gallerySide, wide && { flex: 1.45 }]}>
         <View style={styles.sectionHeader}><Text style={styles.sectionLabel}>MEET THE COMPANIONS</Text><Text style={styles.sectionMeta}>A little kinship goes a long way</Text></View>
@@ -50,11 +50,12 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
             return <Pressable key={character.id} accessibilityRole="radio" accessibilityLabel={`${character.displayName}, ${character.title}. ${character.palace.name}`} accessibilityState={{ checked: chosen, disabled: busy }} aria-checked={chosen} aria-disabled={busy}
               {...(Platform.OS === 'web' ? { tabIndex: chosen ? 0 as const : -1 as const, onKeyDown: (event: KeyboardEvent<HTMLElement>) => keyboardSelect(event, index) } : {})}
               disabled={busy} onPress={() => setSelectedId(character.id)} style={({ pressed }) => [styles.card, { width: width < 600 ? '48%' : '31.7%' }, chosen && styles.chosenCard, pressed && { opacity: .8 }]}>
-              <View style={styles.cardTop}><Text style={styles.number}>{['I', 'II', 'III', 'IV', 'V', 'VI'][index]}</Text><View style={[styles.radio, chosen && { backgroundColor: gold, borderColor: gold }]}>{chosen && <Text style={styles.tick}>✓</Text>}</View></View>
+              <View style={styles.cardTop}><Text style={styles.number}>{['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][index] ?? index + 1}</Text><View style={[styles.radio, chosen && { backgroundColor: gold, borderColor: gold }]}>{chosen && <Text style={styles.tick}>✓</Text>}</View></View>
               <View style={[styles.portrait, { backgroundColor: palettes[character.key].mist, width: portraitSize + 10, height: portraitSize * 1.15 + 10 }]}>
                 <View style={styles.portraitRing} /><CharacterArt characterKey={character.key} size={portraitSize} />
               </View>
               <Text style={styles.name}>{character.displayName}</Text>
+              {character.collection === 'royal' && <Text style={styles.royal}>ROYAL COLLECTION · INCLUDED</Text>}
               <Text style={styles.role}>{character.title.replace('The ', '')}</Text>
               <View style={styles.cardDash} />
               <Text style={styles.palaceLabel}>{character.palace.name.replace('The ', '')}</Text>
@@ -99,6 +100,7 @@ const styles = StyleSheet.create({
   portrait: { alignItems: 'center', justifyContent: 'flex-end', borderTopLeftRadius: 90, borderTopRightRadius: 90, borderBottomLeftRadius: 45, borderBottomRightRadius: 45, marginTop: 3, marginBottom: 13, maxWidth: '100%' },
   portraitRing: { ...StyleSheet.absoluteFill, margin: 4, borderTopLeftRadius: 90, borderTopRightRadius: 90, borderBottomLeftRadius: 45, borderBottomRightRadius: 45, borderWidth: 1, borderColor: 'rgba(163,132,73,.16)' },
   name: { fontFamily: serif, fontSize: 24, color: ink },
+  royal: { fontSize: 8, lineHeight: 15, letterSpacing: .6, color: '#95743B', textAlign: 'center', marginTop: 7 },
   role: { fontSize: 9, color: mutedInk, textAlign: 'center', marginTop: 7, lineHeight: 15, minHeight: 30 },
   cardDash: { width: 22, height: 1, backgroundColor: line, marginVertical: 8 },
   palaceLabel: { fontFamily: serif, fontStyle: 'italic', fontSize: 11, color: '#7A6A51', textAlign: 'center' },

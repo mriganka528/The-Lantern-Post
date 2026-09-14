@@ -8,6 +8,8 @@ import { serif, ink } from '../storybook/theme';
 import { StoryIcon } from '../storybook/ornaments';
 import { pushDriver } from './push-driver';
 import { notifyPushChange, readPush, removePush, writePush } from './push-storage';
+import { PalaceAlertSettings } from '../realtime/palace-alert-settings';
+import { ensureWelcome, welcomeAvailable } from './welcome-driver';
 
 export async function disableDevicePush(ownerId: string, getToken: GetSessionToken) {
   if (!ownerId || !pushDriver.available()) return;
@@ -16,6 +18,8 @@ export async function disableDevicePush(ownerId: string, getToken: GetSessionTok
   await removePush(ownerId); notifyPushChange();
 }
 export function NotificationSettings({ ownerId, getToken }: { ownerId: string; getToken: GetSessionToken }) {
+  const [welcomeStatus, setWelcomeStatus] = useState<string | null>(null);
+  const [welcoming, setWelcoming] = useState(false);
   const [enabled, setEnabled] = useState(false); const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   const mounted = useRef(true);
@@ -41,7 +45,11 @@ export function NotificationSettings({ ownerId, getToken }: { ownerId: string; g
     finally { if (mounted.current) setBusy(false); }
   }
   return <View style={styles.panel}><View style={styles.heading}><StoryIcon kind="key" size={23} /><Text style={styles.title}>The palace bells</Text></View>
-    <Text style={s.body}>{available ? 'A gentle notice when an invitation arrives or a new friendship opens. Only when you choose.' : 'Your invitations will be waiting here whenever you return. Device alerts are not available in this version.'}</Text>
+    <PalaceAlertSettings ownerId={ownerId}/>
+    {welcomeAvailable() && <><StoryButton label={welcoming ? 'Ringing the welcome bell…' : 'Receive my welcome note'} secondary disabled={welcoming} onPress={() => {
+      setWelcoming(true); void ensureWelcome(true).then(result => setWelcomeStatus(result === 'complete' ? 'Your welcome note has been sent to this phone’s notifications. It is sent only once.' : 'Allow notifications in your phone settings to receive your welcome note.')).catch(() => setWelcomeStatus('The welcome note could not be prepared. Please try again.')).finally(() => setWelcoming(false));
+    }} />{welcomeStatus && <Text accessibilityLiveRegion="polite" style={s.body}>{welcomeStatus}</Text>}</>}
+    <Text style={s.body}>{available ? 'Phone notifications for messages, letters and invitations, even when you leave the app. Enable them when you choose.' : Platform.OS==='web'?'Arrival notices work while this browser tab is open. Phone push can be enabled later in an installed Android app.':'Phone push needs an installed development or release build with notification setup. In-app arrival notices work now.'}</Text>
     {available && <StoryButton label={busy ? 'Tending the bells…' : enabled ? 'Turn off device alerts' : 'Enable device alerts'} onPress={() => { void toggle(); }} disabled={busy} secondary={enabled} />}
     {error && <Text role="alert" style={styles.error}>{error}</Text>}
   </View>;
