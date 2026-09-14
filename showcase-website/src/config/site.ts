@@ -1,7 +1,7 @@
-/** Edit these two values when the Lantern Post APK release is ready. */
+/** Shared APK download settings for the showcase and installation guide. */
 export const download = {
-  url: "https://github.com/mriganka528/RollCall/releases/download/v1.0.0/base.apk",
-  isTemporary: true,
+  url: "https://github.com/mriganka528/The-Lantern-Post/releases/download/v0.1.0/lantern-post-development.apk",
+  isTemporary: false,
 };
 
 export const site = {

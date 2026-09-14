@@ -1,4 +1,4 @@
-// Resize the user's supplied artwork locally. No image API, upload or new package.
+w// Resize the user's supplied artwork locally. No image API, upload or new package.
 // The source stays separate from render-storybook-art so regeneration cannot replace it.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
