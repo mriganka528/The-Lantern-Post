@@ -50,6 +50,15 @@ export function createChatTransport(token: GetSessionToken, socketFactory: (url:
     }),
     capabilities: signal => run(async () => { const result = await apiRequest<ChatCapabilities>('/chat/capabilities', token, { signal }); if (typeof result.textAvailable !== 'boolean') throw new ChatFault('connection'); return result; }),
     history,
+    sync: (peer, ids, signal) => run(async () => {
+      const page = readChatPage(await apiRequest(root(peer) + '/sync', token, { method: 'POST', body: { ids }, signal }), peer, 200);
+      if (page.messages.some(message => !ids.includes(message.id))) throw new ChatFault('connection');
+      return page.messages;
+    }),
+    remove: (messageId, scope, signal) => run(async () => {
+      const result = await apiRequest<{ messageId: string; scope: string; removed: boolean }>('/chat/messages/' + encodeURIComponent(messageId) + '/remove', token, { method: 'POST', body: { scope, confirmed: true }, signal });
+      if (result.messageId !== messageId || result.scope !== scope || result.removed !== true) throw new ChatFault('connection');
+    }),
     poll: (peer, after, signal) => run(async () => {
       if (!signal || signal.aborted) throw new ChatFault('connection');
       if (httpMode && subscription === signal && target === peer) return readChatPage(await apiRequest(root(peer) + '/poll?after=' + after, token, { signal }), peer);

@@ -61,7 +61,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           // Skip stale/declined invitations and relationships blocked since enqueue.
           const letterDelivery = job.kind === 'LETTER_DELIVERED';
           const chatDelivery=job.kind==='CHAT_MESSAGE';
-          const chat=chatDelivery&&job.chatMessageId?await this.prisma.chatMessage.findFirst({where:{id:job.chatMessageId,erasedAt:null,AND:[releasedContent],sender:correspondent(job.userId),thread:{OR:[{firstUserId:job.userId},{secondUserId:job.userId}]}},select:{id:true,senderId:true}}):null;
+          const chat=chatDelivery&&job.chatMessageId?await this.prisma.chatMessage.findFirst({where:{id:job.chatMessageId,erasedAt:null,recipientDeletedAt:null,AND:[releasedContent],sender:correspondent(job.userId),thread:{OR:[{firstUserId:job.userId},{secondUserId:job.userId}]}},select:{id:true,senderId:true}}):null;
           const valid = chatDelivery?chat:letterDelivery ? job.letterId && await this.prisma.letter.findFirst({ where: { AND: [privateLetters(job.userId), { id: job.letterId, recipientId: job.userId, readAt: null }] }, select: { id: true } }) :
             job.requestId && await this.prisma.friendRequest.findFirst({ where: { id: job.requestId, status: job.kind === 'FRIEND_REQUEST' ? 'PENDING' : 'ACCEPTED',
               fromUser: notBlocked(job.userId), toUser: notBlocked(job.userId),

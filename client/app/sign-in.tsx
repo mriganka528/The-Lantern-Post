@@ -1,11 +1,13 @@
 // Clerk keeps the create/prepare/attempt API in this supported compatibility entry.
 import { useSignIn, useSignUp } from '@clerk/expo/legacy';
 import { useEffect, useRef, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { clerkErrorMessage } from '../src/auth/clerk-errors';
 import { useOnboardingDraft } from '../src/auth/onboarding-store';
 import { useGoogleSignIn } from '../src/auth/use-google-sign-in';
 import { ActionButton, AgeConfirmation, AuthPage, FormError, LoadingScreen, styles } from '../src/components/auth-ui';
+import { signupNextStep } from '../src/auth/email-flow';
+import type { SignupField, SignupResult } from '../src/auth/email-flow';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -14,7 +16,9 @@ export default function SignInScreen() {
   const { isLoaded: signUpLoaded, signUp, setActive: activateSignUp } = useSignUp();
   const googleSignIn = useGoogleSignIn();
   const [mode, setMode] = useState<Mode>('sign-in');
-  const [stage, setStage] = useState<'email' | 'code'>('email');
+  const [stage, setStage] = useState<'email' | 'code' | 'details'>('email');
+  const [required, setRequired] = useState<SignupField[]>([]);
+  const [details, setDetails] = useState({ first_name: '', last_name: '', username: '', password: '', legal_accepted: false });
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -25,6 +29,8 @@ export default function SignInScreen() {
   const [resendAt, setResendAt] = useState(0);
   const [resendIn, setResendIn] = useState(0);
   const busyRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const normalizedEmail = email.trim().toLowerCase();
 
   useEffect(() => {
@@ -39,8 +45,32 @@ export default function SignInScreen() {
     busyRef.current = true;
     setBusy(true);
     setError(null);
-    try { await operation(); } catch (cause) { setError(clerkErrorMessage(cause)); }
-    finally { busyRef.current = false; setBusy(false); }
+    try { await operation(); } catch (cause) { if (mounted.current) setError(clerkErrorMessage(cause)); }
+    finally { busyRef.current = false; if (mounted.current) setBusy(false); }
+  }
+
+  async function finishSignup(attempt: SignupResult) {
+    if (!mounted.current) return;
+    const next = signupNextStep(attempt);
+    if (next.kind === 'complete') {
+      setDetails({ first_name: '', last_name: '', username: '', password: '', legal_accepted: false });
+      await activateSignUp!({ session: next.sessionId });
+    } else { setCode(''); setRequired(next.fields); setStage('details'); }
+  }
+
+  function completeDetails() {
+    if (!signUpLoaded) return;
+    if (required.some(field => field === 'legal_accepted' ? !details.legal_accepted : !details[field].trim())) { setError('Complete each required detail to continue.'); return; }
+    void perform(async () => {
+      const attempt = await signUp.update({
+        ...(required.includes('first_name') ? { firstName: details.first_name.trim() } : {}),
+        ...(required.includes('last_name') ? { lastName: details.last_name.trim() } : {}),
+        ...(required.includes('username') ? { username: details.username.trim() } : {}),
+        ...(required.includes('password') ? { password: details.password } : {}),
+        ...(required.includes('legal_accepted') ? { legalAccepted: details.legal_accepted } : {}),
+      });
+      await finishSignup(attempt);
+    });
   }
 
   function sendCode() {
@@ -88,9 +118,8 @@ export default function SignInScreen() {
     if (!/^\d{6}$/.test(code.trim())) { setError('Enter the six-digit code from your email.'); return; }
     void perform(async () => {
       if (mode === 'sign-up') {
-        const attempt = await signUp.attemptEmailAddressVerification({ code: code.trim() });
-        if (attempt.status !== 'complete' || !attempt.createdSessionId) throw new Error('Signup is incomplete');
-        await activateSignUp({ session: attempt.createdSessionId });
+        const attempt = signUp.verifications.emailAddress.status === 'verified' ? signUp : await signUp.attemptEmailAddressVerification({ code: code.trim() });
+        await finishSignup(attempt);
       } else {
         const attempt = await signIn.attemptFirstFactor({ strategy: 'email_code', code: code.trim() });
         if (attempt.status !== 'complete' || !attempt.createdSessionId) throw new Error('Sign-in is incomplete');
@@ -116,6 +145,16 @@ export default function SignInScreen() {
   }
 
   if (!signInLoaded || !signUpLoaded) return <LoadingScreen />;
+
+  if (stage === 'details') return <AuthPage title="One last step for your account" subtitle="Your email is verified. Complete the remaining details to open your gate.">
+    {required.filter((field): field is Exclude<SignupField, 'legal_accepted'> => field !== 'legal_accepted').map(field => <View key={field}>
+      <Text style={styles.label}>{{ first_name: 'First name', last_name: 'Last name', username: 'Username', password: 'Password' }[field]}</Text>
+      <TextInput accessibilityLabel={{ first_name: 'First name', last_name: 'Last name', username: 'Username', password: 'Password' }[field]} style={styles.input} value={details[field]} onChangeText={value => setDetails(old => ({ ...old, [field]: value }))} secureTextEntry={field === 'password'} autoCapitalize={field === 'first_name' || field === 'last_name' ? 'words' : 'none'} autoCorrect={false} editable={!busy} maxLength={field === 'password' ? 256 : 100} autoComplete={field === 'password' ? 'new-password' : field === 'username' ? 'username-new' : field === 'first_name' ? 'given-name' : 'family-name'} />
+    </View>)}
+    {required.includes('legal_accepted') && <Pressable accessibilityRole="checkbox" accessibilityLabel="I agree to the Terms of Service and Privacy Policy" accessibilityState={{ checked: details.legal_accepted, disabled: busy }} disabled={busy} onPress={() => setDetails(old => ({ ...old, legal_accepted: !old.legal_accepted }))} style={styles.checkboxRow}><Text style={styles.checkboxLabel}>{details.legal_accepted ? '☑' : '☐'} I agree to the Terms of Service and Privacy Policy linked below.</Text></Pressable>}
+    <FormError message={error} /><ActionButton label={busy ? 'Opening your gate…' : 'Complete my account'} onPress={completeDetails} disabled={busy} />
+    <ActionButton label="Return to sign-in" secondary disabled={busy} onPress={() => { setStage('email'); setMode('sign-in'); setDetails({ first_name: '', last_name: '', username: '', password: '', legal_accepted: false }); setError(null); }} />
+  </AuthPage>;
 
   if (stage === 'code') {
     return <AuthPage title="A little letter for you" subtitle={`Enter the six-digit code sent to ${email}.`}>

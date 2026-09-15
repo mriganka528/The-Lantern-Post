@@ -38,7 +38,7 @@ export class PalaceEvents implements OnModuleInit,OnModuleDestroy {
     // and contains no letter words, captions, message text or sender names.
     const [letters, messages, invitations] = await Promise.all([
       letterIds.length ? this.prisma.letter.findMany({ where: { AND: [privateLetters(ownerId), { id: { in: letterIds }, recipientId: ownerId }] }, select: { id: true, readAt: true } }) : [],
-      messageIds.length ? this.prisma.chatMessage.findMany({ where: { id: { in: messageIds }, erasedAt: null, senderId: { not: ownerId }, AND: [releasedContent], sender: correspondent(ownerId), thread: { OR: [{ firstUserId: ownerId }, { secondUserId: ownerId }] } }, select: { id: true } }) : [],
+      messageIds.length ? this.prisma.chatMessage.findMany({ where: { id: { in: messageIds }, erasedAt: null, recipientDeletedAt: null, senderId: { not: ownerId }, AND: [releasedContent], sender: correspondent(ownerId), thread: { OR: [{ firstUserId: ownerId }, { secondUserId: ownerId }] } }, select: { id: true } }) : [],
       invitationIds.length ? this.prisma.friendRequest.findMany({ where: { id: { in: invitationIds }, fromUser: notBlocked(ownerId), toUser: notBlocked(ownerId), OR: [{ toUserId: ownerId, status: 'PENDING' }, { fromUserId: ownerId, status: 'ACCEPTED' }] }, select: { id: true } }) : [],
     ]);
     const visible = new Set([...letters, ...messages, ...invitations].map(row => row.id));
@@ -53,7 +53,7 @@ export class PalaceEvents implements OnModuleInit,OnModuleDestroy {
     const rows=await this.prisma.palaceEvent.findMany({where:{ownerId,sequence:{gt:after}},orderBy:{sequence:'asc'},take:50});const events:PalaceLiveEvent[]=[];
     for(const row of rows){let alert=false;const recent=Date.now()-row.createdAt.getTime()<300000;let kind=row.kind as PalaceEventKind;
       if(recent&&kind==='LETTER_RECEIVED')alert=Boolean(await this.prisma.letter.findFirst({where:{AND:[privateLetters(ownerId),{id:row.itemId!,recipientId:ownerId,readAt:null}]},select:{id:true}}));
-      if(recent&&kind==='CHAT_RECEIVED')alert=Boolean(await this.prisma.chatMessage.findFirst({where:{id:row.itemId!,erasedAt:null,AND:[releasedContent],senderId:row.peerId!,sender:correspondent(ownerId),thread:{OR:[{firstUserId:ownerId},{secondUserId:ownerId}]}},select:{id:true}}));
+      if(recent&&kind==='CHAT_RECEIVED')alert=Boolean(await this.prisma.chatMessage.findFirst({where:{id:row.itemId!,erasedAt:null,recipientDeletedAt:null,AND:[releasedContent],senderId:row.peerId!,sender:correspondent(ownerId),thread:{OR:[{firstUserId:ownerId},{secondUserId:ownerId}]}},select:{id:true}}));
       if(recent&&(kind==='FRIEND_REQUEST'||kind==='FRIEND_ACCEPTED'))alert=Boolean(await this.prisma.friendRequest.findFirst({where:{id:row.itemId!,status:kind==='FRIEND_REQUEST'?'PENDING':'ACCEPTED',...(kind==='FRIEND_REQUEST'?{toUserId:ownerId}:{fromUserId:ownerId}),fromUser:notBlocked(ownerId),toUser:notBlocked(ownerId)},select:{id:true}}));
       if(!alert&&kind==='LETTER_RECEIVED')kind='LETTERBOX_CHANGED';if(!alert&&kind==='CHAT_RECEIVED')kind='CHAT_CHANGED';
       events.push({id:row.id,sequence:row.sequence,kind,peerId:row.peerId,itemId:row.itemId,createdAt:row.createdAt.toISOString(),alert});

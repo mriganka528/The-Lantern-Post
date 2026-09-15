@@ -14,3 +14,16 @@ export function worldRejectionMessage(reason: WorldRejection | null) {
   if (reason === 'DELIVERY_LIMIT') return 'You have shared enough lights for today. Your letter is kept here for another day.';
   return 'Sharing was cancelled. Your sealed letter is still here with you.';
 }
+export function worldDeliveryProblem(error: unknown): string {
+  const value = error && typeof error === 'object' ? error as { code?: unknown; status?: unknown; name?: unknown } : {};
+  if (value.code === 'VOICE_STORAGE_FULL') return 'The recording cabinet is full for now. Your recording stays here; you can cancel sharing and try later.';
+  if (value.code === 'VOICE_UPLOAD_EXPIRED') return 'This recording upload expired. Check its status, or cancel sharing and send the saved recording again.';
+  if (value.code === 'VOICE_INVALID' || value.code === 'VOICE_UPLOAD_MISMATCH') return 'The recording could not be validated. Check its status, or cancel sharing to keep your letter and record a new take.';
+  if (value.code === 'VOICE_UPLOAD_LIMIT') return 'Finish or cancel another pending voice delivery, then retry this letter.';
+  if (value.code === 'VOICE_STORAGE_UNAVAILABLE') return 'Voice delivery is temporarily unavailable. Your recording is kept; check its status before retrying.';
+  if (value.code === 'MODERATION_UNAVAILABLE') return 'Public sharing is resting. This letter has not been confirmed; you can cancel and keep it.';
+  if (value.status === 401) return 'Sign in again to finish sharing. Your pending letter and recording stay on this device.';
+  if (value.status === 429) return 'The palace post needs a short rest. Wait a minute, then check this letter’s status.';
+  if (value.name === 'ApiTimeoutError') return 'The upload or reply took too long. Your recording is kept. Check its status before retrying.';
+  return 'We could not confirm sharing. Your letter stays sealed. Check its status or retry in a little while.';
+}

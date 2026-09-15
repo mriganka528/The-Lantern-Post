@@ -63,6 +63,11 @@ try {
   await page.route('**/*', route => { const url=new URL(route.request().url()); if(url.origin!=='http://127.0.0.1')return route.abort();return route.fulfill(url.pathname==='/bundle.js'?{contentType:'text/javascript; charset=utf-8',body:memory.readFileSync(resolve(output,'bundle.js'))}:{contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body,#root{margin:0;height:100%;width:100%}#root{display:flex}</style></head><body><div id="root"></div><script src="/bundle.js"></script></body></html>'}); });
   const button=name=>page.getByRole('button',{name,exact:true});
   await page.goto('http://127.0.0.1');
+  if(process.argv.includes('--home-only')){
+    await page.evaluate(()=>{localStorage.setItem('lantern-guidance-v1','skipped');localStorage.setItem('fixture-character','char_fox-lantern');});
+    await page.reload();await button('Skip to my palace').click();
+    for(const id of ['home-writing-desk','home-worlds']){await page.getByTestId(id).evaluate(node=>node.scrollIntoView({block:'start'}));await page.waitForTimeout(120);captures.push((await page.screenshot({type:'jpeg',quality:75})).toString('base64'));}
+  }else{
   await page.evaluate(()=>localStorage.setItem('lantern-guidance-v1','skipped'));
   await page.getByRole('radio',{name:/^Orion,/}).click();
   await button('Go with Orion').waitFor();assert.equal(await page.evaluate(()=>window.__ux.calls),0);
@@ -106,7 +111,8 @@ try {
   await button('Start guidance').click();await page.getByTestId('palace-guidance').waitFor();
   if(native)assert.equal(await page.evaluate(()=>window.__androidBack()),true);else await button('Skip guidance').click();
   await page.getByTestId('palace-guidance').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>localStorage.getItem('lantern-guidance-v1')),'skipped');
+  }
   assert.deepEqual(errors,[]);
-  console.log('PASS '+(native?'Android-coordinate':'web')+' preview: nine aligned targets; cached-home gate round trips; one-tap opening; fixed confirmation actions; cancel/error/retry; Back/Skip.');
+  console.log(process.argv.includes('--home-only')?'Home layout capture complete.':'PASS '+(native?'Android-coordinate':'web')+' preview: nine aligned targets; cached-home gate round trips; one-tap opening; fixed confirmation actions; cancel/error/retry; Back/Skip.');
   if(process.argv.includes('--images'))for(const capture of captures)console.log('REVIEW_IMAGE:'+capture);
 } finally { await browser?.close(); }

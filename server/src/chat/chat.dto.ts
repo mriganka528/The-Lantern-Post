@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import type { TransformFnParams } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min } from 'class-validator';
 import type { ChatSendRequest, LetterReportReason } from '@lantern-post/shared-types';
 export class ChatPeerDto { @IsString() @Length(1, 100) @Matches(/^[a-zA-Z0-9_-]+$/) peerId!: string; }
 export class ChatRequestDto extends ChatPeerDto { @IsUUID('4') requestId!: string; }
@@ -16,6 +16,10 @@ export class ChatSendDto implements ChatSendRequest {
   @IsIn([true]) confirmed!: true;
 }
 export class ChatConfirmDto { @IsIn([true]) confirmed!: true; }
+export class ChatRemoveDto extends ChatConfirmDto { @IsIn(['self', 'everyone']) scope!: 'self' | 'everyone'; }
+export class ChatSyncDto {
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(200) @ArrayUnique() @Matches(/^chatmsg_[a-f0-9-]{36}$/, { each: true }) ids!: string[];
+}
 export class ChatReportDto extends ChatConfirmDto {
   @IsIn(['HARASSMENT', 'SPAM', 'HATE_SPEECH', 'SELF_HARM_CONCERN', 'OTHER']) reason!: LetterReportReason;
   @IsOptional() @Transform(({ value }: TransformFnParams) => typeof value === 'string' ? value.trim() : value) @IsString() @MaxLength(500) detail?: string;

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { randomUUID } from 'expo-crypto';
 import type { ChatMessage, ChatPage } from '@lantern-post/shared-types';
 import { ChatDraftController } from './chat-draft';
 import { ChatSession } from './chat-session';
-import { CHAT_LIMIT, validMessage } from './chat-contract';
+import { CHAT_LIMIT, mergeMessages, validMessage } from './chat-contract';
 import type { ChatTransport } from './chat-contract';
 import { draftStorage } from '../letters/draft-storage';
-import { StoryHeading, StoryShell, TextAction, s } from '../storybook/story-ui';
+import { StoryButton, StoryDialog, StoryHeading, StoryShell, TextAction, s } from '../storybook/story-ui';
 import { RoyalNavButton } from '../storybook/royal-navigation';
 import { PalaceCrest } from '../letters/antique-assets';
 import { CharacterArt } from '../storybook/character-art';
@@ -18,6 +18,7 @@ import { BlockPalaceDialog, ReportLetterDialog } from '../safety/safety-controls
 import type { SafetyTransport } from '../safety/safety-api';
 import { SupportCard } from '../safety/support-card';
 import { mightNeedSupport } from '../safety/support-resources';
+import { usePalaceConnection, watchPalaceEvents } from '../realtime/palace-live-state';
 
 export function ChatRoom({ ownerId, peerId, api, safety, onBack, focused = true }: { ownerId: string; peerId: string; api: ChatTransport; safety: SafetyTransport; onBack: () => void; focused?: boolean }) {
   const [draft] = useState(() => new ChatDraftController(ownerId, peerId, draftStorage));
@@ -26,15 +27,49 @@ export function ChatRoom({ ownerId, peerId, api, safety, onBack, focused = true 
   const live = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [sample, setSample] = useState(false); const [history, setHistory] = useState<ChatPage | null>(null); const [loadingHistory, setLoadingHistory] = useState(false);
   const [reporting, setReporting] = useState<{ message: ChatMessage; username: string } | null>(null); const [blocking, setBlocking] = useState(false);
+  const [managing, setManaging] = useState<{ messageId: string; side: ChatMessage['side']; scope: 'self' | 'everyone' | null } | null>(null);
+  const [removing, setRemoving] = useState(false), [removeError, setRemoveError] = useState(false);
+  const historyRef = useRef(history), mounted = useRef(true);
+  useEffect(() => { historyRef.current = history; }, [history]);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const active = useAppActive(); const running = active && focused && !sample;
+  const accountConnected = usePalaceConnection(ownerId);
+  useEffect(() => {
+    if (!running) return;
+    let live = true;
+    const refresh = () => {
+      void session.synchronize();
+      const before = historyRef.current;
+      if (before?.messages.length) void session.syncPage(before.messages.map(message => message.id)).then(rows => {
+        if (!live || !rows) return;
+        const visible = new Set(rows.map(message => message.id));
+        setHistory(current => current !== before ? current : { ...before, messages: mergeMessages(before.messages.filter(message => visible.has(message.id)), rows) });
+      });
+    };
+    if (accountConnected) refresh();
+    const stop = watchPalaceEvents(ownerId, event => { if (event.peerId === peerId && (event.kind === 'CHAT_CHANGED' || event.kind === 'GATES_CHANGED')) refresh(); });
+    return () => { live = false; stop(); };
+  }, [running, accountConnected, ownerId, peerId, session]);
   const { width } = useWindowDimensions();
   useEffect(() => { draft.load(); return draft.watch(); }, [draft]);
   useEffect(() => { if (running) session.start(); else session.stop(); return () => session.stop(); }, [running, session]);
   useEffect(() => { if (!running || Platform.OS !== 'web') return; const online = () => session.start(); window.addEventListener('online', online); return () => window.removeEventListener('online', online); }, [running, session]);
   const reportApi = useMemo<SafetyTransport>(() => ({ ...safety, report: (id, input) => api.report(id, input) }), [api, safety]);
   const text = saved.draft?.text ?? ''; const pending = Boolean(saved.draft?.requestId); const closed = live.phase === 'closed'; const peer = live.peer;
+  const managedMessage = managing ? (history?.messages ?? live.messages).find(message => message.id === managing.messageId) : undefined;
   function leave() { if (!saved.saved && !draft.retrySave()) return; onBack(); }
   async function earlier() { const before = history ? history.before : live.before; if (!before || loadingHistory) return; setLoadingHistory(true); const page = await session.earlier(before); if (page) setHistory(page); setLoadingHistory(false); }
+  async function removeMessage() {
+    if (!managing?.scope || removing || !running) return;
+    const { messageId, scope } = managing; setRemoving(true); setRemoveError(false);
+    try {
+      if (!await session.remove(messageId, scope)) throw Error('Message changed');
+      if (!mounted.current) return;
+      setHistory(current => current ? { ...current, messages: current.messages.flatMap(item => item.id !== messageId ? [item] : scope === 'self' ? [] : [{ ...item, text: 'This message was unsent.', removed: true }]) } : null);
+      setManaging(null);
+    } catch { if (mounted.current) setRemoveError(true); }
+    finally { if (mounted.current) setRemoving(false); }
+  }
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><StoryShell chapter="THE KINDRED PARLOUR" beforeBellOpen={() => saved.saved || draft.retrySave()} actions={<TextAction label="Friendship court" onPress={leave} />}>
     <StoryHeading eyebrow="A LITTLE HELLO, BY LANTERN LIGHT" title={sample ? 'The sample parlour' : peer ? 'A conversation with @' + peer.username : 'The friendship parlour'} subtitle={sample ? 'A fictional conversation to try the room. No message leaves this device.' : 'Two familiar souls. A quiet table beneath the palace stars.'} />
     <View style={styles.header}><Image source={require('../../assets/storybook/writing-chamber.png')} style={StyleSheet.absoluteFill} resizeMode="cover" accessible={false} /><View style={styles.plaque}><PalaceCrest size={42} color="#CDB17C" /><View style={{ flex: 1, gap: 6 }}><Text style={styles.headerTitle}>{sample ? 'A room for trying things' : peer?.character?.palace.name ?? 'A place for kindred souls'}</Text><Text style={styles.headerNote}>{sample ? 'PREVIEW ONLY · SCRIPTED SAMPLE GUEST' : live.connected && live.available ? 'THE POST IS CONNECTED · MESSAGES ARRIVE LIVE' : 'THE PALACE KEEPS YOUR UNSENT WORDS'}</Text></View>{peer?.character && !sample && width > 450 && <CharacterArt characterKey={peer.character.key} size={78} />}</View></View>
@@ -42,7 +77,7 @@ export function ChatRoom({ ownerId, peerId, api, safety, onBack, focused = true 
       <View style={styles.tools}>{peer && <RoyalNavButton label={'Close gate to ' + peer.username} icon="gate" compact onPress={() => setBlocking(true)} />}<RoyalNavButton label="Explore sample conversation" icon="star" compact onPress={() => setSample(true)} /></View>
       {live.phase === 'loading' ? <View style={styles.waiting}><ActivityIndicator color="#9A7A43" /><Text style={s.body}>Opening the parlour doors…</Text></View> : closed ? <View style={styles.closed}><StoryIcon kind="gate" size={40} /><Text style={styles.emptyTitle}>These gates are closed.</Text><Text style={s.body}>{live.error}</Text><RoyalNavButton label="Check the friendship gate" icon="key" onPress={() => session.start()} /></View> : <>
         <View style={styles.historyBar}>{(history?.before ?? (!history ? live.before : null)) && <TextAction label={loadingHistory ? 'Turning the page…' : 'Earlier messages'} disabled={loadingHistory || !running} onPress={() => { void earlier(); }} />}{history && <TextAction label="Return to latest messages" onPress={() => setHistory(null)} />}<Text style={styles.small}>{history ? 'An earlier page of your conversation' : live.connected ? 'Messages arrive here as they are delivered' : 'Waiting to reconnect…'}</Text></View>
-        <Conversation messages={history?.messages ?? live.messages} peerName={peer?.username ?? 'your friend'} historical={Boolean(history)} onReport={message => setReporting({ message, username: peer?.username ?? 'your friend' })} />
+        <Conversation messages={history?.messages ?? live.messages} peerName={peer?.username ?? 'your friend'} historical={Boolean(history)} onReport={message => setReporting({ message, username: peer?.username ?? 'your friend' })} onManage={api.remove ? message => { setRemoveError(false); setManaging({ messageId: message.id, side: message.side, scope: null }); } : undefined} />
       </>}
       {live.error && !closed && <Text role="status" style={styles.error}>{live.error}</Text>}
       {!live.available && !closed && live.phase !== 'loading' && <View style={styles.availability}><Text style={s.body}>Live chat is temporarily unavailable. Your words stay on this device. The sample conversation lets you explore the parlour.</Text><TextAction label="Check live chat availability" onPress={() => session.start()} /></View>}
@@ -59,14 +94,26 @@ export function ChatRoom({ ownerId, peerId, api, safety, onBack, focused = true 
     </>}
     {blocking && peer && <BlockPalaceDialog ownerId={ownerId} person={peer} api={safety} onClose={() => setBlocking(false)} onSaved={() => { setBlocking(false); setHistory(null); session.start(); }} />}
     {reporting && <ReportLetterDialog ownerId={ownerId} letterId={reporting.message.id} sender={{ username: reporting.username }} api={reportApi} item="message" onClose={() => setReporting(null)} onBlocked={() => { setReporting(null); setHistory(null); session.start(); }} />}
+    {running && managing && <StoryDialog title={managing.scope === 'everyone' ? 'Unsend this message?' : managing.scope === 'self' ? 'Delete this message for you?' : 'Message options'} onClose={() => { if (!removing) setManaging(null); }} footer={managing.scope ? <>
+      <StoryButton label={removing ? 'Removing message…' : managing.scope === 'everyone' ? 'Confirm unsend' : 'Confirm delete for me'} busy={removing} disabled={closed} onPress={() => { void removeMessage(); }} />
+      <StoryButton label="Keep message" secondary disabled={removing} onPress={() => setManaging(null)} />
+    </> : <>
+      <StoryButton label="Delete for me" secondary onPress={() => setManaging({ ...managing, scope: 'self' })} />
+      {managing.side === 'mine' && managedMessage && !managedMessage.removed && <StoryButton label="Unsend for everyone" secondary onPress={() => setManaging({ ...managing, scope: 'everyone' })} />}
+      <TextAction label="Close message options" onPress={() => setManaging(null)} />
+    </>}>
+      <Text numberOfLines={3} style={s.body}>{managedMessage?.text ?? 'This message is no longer in your history.'}</Text>
+      <Text style={s.body}>{managing.scope === 'everyone' ? 'Its text will be removed from both sides of this conversation. Copies already read, shared or backed up cannot be recalled.' : managing.scope === 'self' ? 'This message will be removed from your chat history. Your friend keeps their copy.' : 'Choose whether to remove your copy or withdraw a message you sent.'}</Text>
+      {removeError && <Text role="alert" style={s.body}>The message could not be removed. Your conversation is kept; please try again.</Text>}
+    </StoryDialog>}
   </StoryShell></KeyboardAvoidingView>;
 }
-function Conversation({ messages, peerName, onReport, historical = false }: { messages: ChatMessage[]; peerName: string; onReport?: (message: ChatMessage) => void; historical?: boolean }) {
+function Conversation({ messages, peerName, onReport, onManage, historical = false }: { messages: ChatMessage[]; peerName: string; onReport?: (message: ChatMessage) => void; onManage?: (message: ChatMessage) => void; historical?: boolean }) {
   const { height } = useWindowDimensions(); const scroll = useRef<ScrollView>(null); const nearBottom = useRef(true); const [below, setBelow] = useState(false);
   return <View style={styles.conversation}><View style={[styles.conversationInset, { pointerEvents: "none" }]} /><View style={styles.mantel}><Flourish width={110} /><Text style={styles.eyebrow}>WORDS BETWEEN TWO PALACES</Text><Flourish width={110} /></View>
     <ScrollView ref={scroll} testID="chat-transcript" nestedScrollEnabled showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" style={{ height: Math.max(290, Math.min(480, height * .46)), flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.messages} onScrollBeginDrag={() => { nearBottom.current = false; }} onScroll={event => { const e = event.nativeEvent; nearBottom.current = e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 80; if (nearBottom.current) setBelow(false); }} scrollEventThrottle={32}
       onContentSizeChange={() => { if (!historical && nearBottom.current) scroll.current?.scrollToEnd({ animated: false }); else if (!historical) setBelow(true); }}>
-      {!messages.length ? <View style={styles.waiting}><PalaceCrest size={57} /><Text style={styles.emptyTitle}>The first hello is yours.</Text><Text style={styles.small}>A little conversation can begin with a single kind word.</Text></View> : messages.map(message => <View key={message.id} testID={'chat-message-' + message.sequence} style={[styles.message, message.side === 'mine' && styles.mine]}><View style={styles.postmark}><StoryIcon kind="star" size={12} color="#AD8A4D" /><Text style={styles.messageName}>{message.side === 'mine' ? 'YOU' : '@' + peerName}</Text><Text style={styles.date}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View><Text selectable style={styles.messageText}>{message.text}</Text>{message.side === 'theirs' && onReport && <TextAction label={'Report message ' + message.sequence} onPress={() => onReport(message)} />}</View>)}
+      {!messages.length ? <View style={styles.waiting}><PalaceCrest size={57} /><Text style={styles.emptyTitle}>The first hello is yours.</Text><Text style={styles.small}>A little conversation can begin with a single kind word.</Text></View> : messages.map(message => <View key={message.id} testID={'chat-message-' + message.sequence} style={[styles.message, message.side === 'mine' && styles.mine]}><View style={styles.postmark}><StoryIcon kind="star" size={12} color="#AD8A4D" /><Text style={styles.messageName}>{message.side === 'mine' ? 'YOU' : '@' + peerName}</Text><Text style={styles.date}>{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>{onManage && <Pressable accessibilityRole="button" accessibilityLabel={'Message options ' + message.sequence} onPress={() => onManage(message)} style={{ minWidth: 44, minHeight: 44, marginLeft: 'auto', justifyContent: 'center', alignItems: 'center' }}><Text style={s.body}>•••</Text></Pressable>}</View><Text selectable style={[styles.messageText, message.removed && { fontSize: 14, fontStyle: 'italic' }]}>{message.text}</Text>{message.side === 'theirs' && !message.removed && onReport && <TextAction label={'Report message ' + message.sequence} onPress={() => onReport(message)} />}</View>)}
     </ScrollView>
     {below && <TextAction label="New words below" onPress={() => { nearBottom.current = true; setBelow(false); scroll.current?.scrollToEnd({ animated: false }); }} />}
   </View>;

@@ -6,6 +6,7 @@ import { activeAccount } from '../account/account-access';
 import { notBlocked } from '../friends/friend-contract';
 import { backupOwnerKey } from './drive.service';
 import { chatThreadId } from '../chat/chat.service';
+import { chatVisibleTo } from '../chat/chat-visibility';
 
 @Injectable()
 export class BackupsService {
@@ -37,7 +38,7 @@ export class BackupsService {
       const peer = await tx.user.findFirst({ where: { id: peerId, ...notBlocked(ownerId) } });
       const friend = await tx.friendRequest.findFirst({ where: { status: 'ACCEPTED', OR: [{ fromUserId: ownerId, toUserId: peerId }, { toUserId: ownerId, fromUserId: peerId }] } });
       if (!peer || !friend) throw new NotFoundException('This conversation is closed.');
-      const rows = await tx.chatMessage.findMany({ where: { threadId: chatThreadId(ownerId, peerId), erasedAt: null, AND: [releasedContent], sequence: { lte: through, lt: before } }, orderBy: { sequence: 'desc' }, take: 201 });
+      const rows = await tx.chatMessage.findMany({ where: { threadId: chatThreadId(ownerId, peerId), erasedAt: null, AND: [releasedContent, chatVisibleTo(ownerId)], sequence: { lte: through, lt: before } }, orderBy: { sequence: 'desc' }, take: 201 });
       return { messages: rows.slice(0,200).map(row => ({ sequence: row.sequence, side: row.senderId === ownerId ? 'mine' : 'theirs', text: row.text, createdAt: row.createdAt.toISOString() })), before: rows.length > 200 ? rows[199]!.sequence : null };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }

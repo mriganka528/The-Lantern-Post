@@ -17,6 +17,7 @@
     "check:guidance-ui": "node scripts/check-phase10-ui.mjs --guidance",
     "check:palace-ux-ui": "node scripts/check-palace-refinements-ui.mjs",
     "check:palace-ux-web": "node scripts/check-palace-refinements-ui.mjs --web",
+    "check:correspondence-ui": "node scripts/check-mobile-correspondence-ui.mjs",
     "check:session-ui": "node scripts/check-phase10-ui.mjs --session",
     "check:bell-ui": "node scripts/check-phase10-ui.mjs --bell",
     "check:chat-speed-ui": "node scripts/check-phase10-ui.mjs --chat-speed",

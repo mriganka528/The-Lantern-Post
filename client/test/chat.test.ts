@@ -17,6 +17,35 @@ function fixture(owner = 'a', peer = 'b') {
 const page = (messages: ChatMessage[] = []): ChatPage => ({ peer: { id: 'b', username: 'bob', character: null }, messages, cursor: messages.at(-1)?.sequence ?? 0, before: null });
 const receipt = (requestId: string): ChatReceipt => ({ requestId, peerId: 'b', outcome: 'DELIVERED', reason: null, messageId: 'chatmsg_' + randomUUID(), sequence: 1, completedAt: new Date().toISOString() });
 const message = (sequence: number): ChatMessage => ({ id: 'chatmsg_' + randomUUID(), sequence, side: 'theirs', text: 'Synthetic words.', createdAt: new Date().toISOString() });
+
+test('unsent markers retain sequence identity and cannot be overwritten by a late plaintext page', () => {
+  const original = message(1), removed = { ...original, text: 'This message was unsent.', removed: true as const };
+  assert.equal(readChatPage(page([removed]), 'b').messages[0]!.removed, true);
+  assert.throws(() => readChatPage(page([{ ...original, removed: true }]), 'b'));
+  assert.deepEqual(mergeMessages([removed], [original]), [removed]);
+});
+
+test('message synchronization preserves the ordered cursor and late reads cannot undo an unsend', async () => {
+  const f = fixture(), original = { ...message(1), side: 'mine' as const };
+  let finish!: (messages: ChatMessage[]) => void;
+  const api = transport({ history: async () => page([original]), sync: async () => new Promise(resolve => { finish = resolve; }), remove: async () => {} });
+  const session = new ChatSession('b', api, f.draft, randomUUID); session.start();
+  while (session.getSnapshot().phase !== 'ready') await setImmediate();
+  const sync = session.synchronize(); while (!finish) await setImmediate();
+  await session.remove(original.id, 'everyone'); finish([original]); await sync;
+  assert.equal(session.getSnapshot().messages[0]!.removed, true); assert.equal(session.getSnapshot().cursor, 1);
+  await session.remove(original.id, 'self'); assert.equal(session.getSnapshot().messages.length, 0);
+  session.stop();
+});
+
+test('recovering an old send receipt reads current visibility rather than restoring unsent draft text', async () => {
+  const f = fixture(); f.draft.edit('Previously sent private words'); const requestId = randomUUID(); f.draft.confirm(requestId);
+  const delivered = receipt(requestId), removed = { id: delivered.messageId!, sequence: 1, side: 'mine' as const, text: 'This message was unsent.', removed: true as const, createdAt: delivered.completedAt };
+  const session = new ChatSession('b', transport({ receipt: async () => delivered, sync: async () => [removed] }), f.draft, randomUUID);
+  session.start(); while (f.draft.pending()) await setImmediate();
+  assert.equal(session.getSnapshot().messages[0]!.removed, true); assert.ok(!JSON.stringify(session.getSnapshot()).includes('Previously sent private words'));
+  session.stop();
+});
 function transport(overrides: Partial<ChatTransport> = {}): ChatTransport {
   return { capabilities: async () => ({ textAvailable: true }), history: async () => page(), poll: async (_peer, _after, signal) => new Promise((_resolve, reject) => { if (signal?.aborted) reject(Error('Stopped')); else signal?.addEventListener('abort', () => reject(Error('Stopped')), { once: true }); }), send: async (_peer, input) => receipt(input.requestId), receipt: async () => null, cancel: async (_peer, requestId) => ({ ...receipt(requestId), outcome: 'REJECTED', reason: 'CANCELLED', messageId: null, sequence: null }), report: async () => ({ id: 'report', status: 'OPEN', createdAt: new Date().toISOString(), blocked: false }), ...overrides };
 }

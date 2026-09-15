@@ -141,6 +141,8 @@ model ChatMessage {
   moderationPassed Boolean?
   moderationSkipped Boolean @default(false)
   erasedAt DateTime?
+  senderDeletedAt DateTime?
+  recipientDeletedAt DateTime?
   createdAt DateTime @default(now())
   reports ChatReport[]
   @@unique([threadId, sequence])

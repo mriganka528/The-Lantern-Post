@@ -1,6 +1,7 @@
 import type { VoiceStore } from './voice-contract';
 import { cleanVoiceClip } from './voice-contract';
 import { assertAccountOpen } from '../account/account-fence';
+import { voiceDigestBase64 } from './voice-hash';
 const database = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open('lantern-voice-v1', 1);
   request.onupgradeneeded = () => request.result.createObjectStore('clips');
@@ -31,7 +32,7 @@ export const voiceStorage: VoiceStore = {
   },
   async remove(ownerId, clipId) { await run('readwrite', store => store.delete(key(ownerId, clipId))); },
   async playback(ownerId, clip) { const bytes = await voiceStorage.read(ownerId, clip); const uri = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: clip.mimeType })); return { uri, release: () => URL.revokeObjectURL(uri) }; },
-  async sha256(bytes) { const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer); return btoa(String.fromCharCode(...new Uint8Array(digest))); },
+  async sha256(bytes) { const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer); return voiceDigestBase64(digest); },
 };
 export async function eraseVoiceOwner(ownerId: string) {
   if (!/^[a-zA-Z0-9_-]{1,100}$/.test(ownerId)) throw Error();

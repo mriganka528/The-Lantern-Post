@@ -184,7 +184,7 @@ export interface DeliveryReceipt {
 export interface DeliveryReceiptResponse { receipt: DeliveryReceipt | null; }
 export interface LetterRecipient { id: string; username: string; characterKey: CharacterKey | null; palaceName: string; }
 
-export interface ChatMessage { id: string; sequence: number; side: 'mine' | 'theirs'; text: string; createdAt: string; }
+export interface ChatMessage { id: string; sequence: number; side: 'mine' | 'theirs'; text: string; createdAt: string; removed?: true; }
 export interface ChatPage { peer: FriendPerson; messages: ChatMessage[]; cursor: number; before: number | null; capabilities?: ChatCapabilities; }
 export interface ChatSendRequest { requestId: string; text: string; confirmed: true; }
 export type ChatRejection = 'CANCELLED' | 'FRIEND_UNAVAILABLE' | 'CONTENT_NOT_ALLOWED' | 'DAILY_LIMIT';

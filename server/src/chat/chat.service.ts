@@ -3,7 +3,7 @@ import { Optional } from '@nestjs/common';
 import { releasedContent, reviewMetadata } from '../letters/content-review';
 import type { ContentDecision } from '../letters/content-review';
 import { activeAccount } from '../account/account-access';
-import { ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ChatReceipt as ReceiptRow } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
@@ -15,10 +15,15 @@ import { person, personSelect } from '../friends/friend-contract';
 import { SafetyService } from '../safety/safety.service';
 import { ChatSignal } from './chat-signal';
 import { correspondent } from '../letters/private-letter-contract';
+import { chatVisibleTo } from './chat-visibility';
 
 const hash = (scope: string, ...values: string[]) => scope + '_' + createHash('sha256').update(values.join('\0')).digest('hex');
 export const chatThreadId = (a: string, b: string) => hash('thread', ...[a, b].sort());
-const messageSelect = { id: true, sequence: true, senderId: true, text: true, createdAt: true } as const;
+const messageSelect = { id: true, sequence: true, senderId: true, text: true, createdAt: true, erasedAt: true } as const;
+function message(row: Prisma.ChatMessageGetPayload<{ select: typeof messageSelect }>, ownerId: string) {
+  return { id: row.id, sequence: row.sequence, side: row.senderId === ownerId ? 'mine' as const : 'theirs' as const,
+    text: row.erasedAt ? 'This message was unsent.' : row.text, createdAt: row.createdAt.toISOString(), ...(row.erasedAt ? { removed: true as const } : {}) };
+}
 function receipt(row: ReceiptRow, requestId: string, peerId: string): ChatReceipt {
   if (row.peerId !== peerId) throw new ConflictException({ code: 'CHAT_REQUEST_CONFLICT', message: 'This message already has a different destination.' });
   return { requestId: requestId.toLowerCase(), peerId, outcome: row.outcome, reason: row.reason as ChatRejection | null, messageId: row.messageId, sequence: row.sequence, completedAt: row.createdAt.toISOString() };
@@ -50,10 +55,45 @@ export class ChatService {
     return this.transaction(async tx => {
       const peer = await this.gate(tx, ownerId, peerId); if (!peer) this.unavailable();
       const take = Math.max(1, Math.min(50, pageSize));
-      const rows = await tx.chatMessage.findMany({ where: { threadId, AND: [releasedContent], erasedAt: null, ...(before !== undefined ? { sequence: { lt: before } } : after !== undefined ? { sequence: { gt: after } } : {}) }, select: messageSelect, orderBy: { sequence: after !== undefined ? 'asc' : 'desc' }, take: take + 1 });
+      const rows = await tx.chatMessage.findMany({ where: { threadId, AND: [releasedContent, chatVisibleTo(ownerId)], ...(before !== undefined ? { sequence: { lt: before } } : after !== undefined ? { sequence: { gt: after } } : {}) }, select: messageSelect, orderBy: { sequence: after !== undefined ? 'asc' : 'desc' }, take: take + 1 });
       const page = rows.slice(0, take); if (after === undefined) page.reverse();
-      return { peer: person(peer), messages: page.map(row => ({ id: row.id, sequence: row.sequence, side: row.senderId === ownerId ? 'mine' : 'theirs', text: row.text, createdAt: row.createdAt.toISOString() })), cursor: page[page.length - 1]?.sequence ?? after ?? 0, before: after === undefined && rows.length > take ? page[0]!.sequence : null, capabilities: this.capabilities() };
+      return { peer: person(peer), messages: page.map(row => message(row, ownerId)), cursor: page[page.length - 1]?.sequence ?? after ?? 0, before: after === undefined && rows.length > take ? page[0]!.sequence : null, capabilities: this.capabilities() };
     });
+  }
+  async sync(subject: string, peerId: string, ids: string[]): Promise<ChatPage> {
+    const owner = await this.owner(subject);
+    return this.transaction(async tx => {
+      const peer = await this.gate(tx, owner.id, peerId); if (!peer) this.unavailable();
+      const rows = await tx.chatMessage.findMany({ where: { threadId: chatThreadId(owner.id, peerId), id: { in: ids }, AND: [releasedContent, chatVisibleTo(owner.id)] }, select: messageSelect, orderBy: { sequence: 'asc' }, take: 200 });
+      return { peer: person(peer), messages: rows.map(row => message(row, owner.id)), cursor: rows.at(-1)?.sequence ?? 0, before: null };
+    });
+  }
+  async remove(subject: string, messageId: string, scope: 'self' | 'everyone') {
+    const owner = await this.owner(subject);
+    const affected = await this.transaction(async tx => {
+      await activeAccount(tx, owner.id);
+      const row = await tx.chatMessage.findFirst({ where: { id: messageId, thread: { OR: [{ firstUserId: owner.id }, { secondUserId: owner.id }] } }, include: { thread: true } });
+      if (!row) this.unavailable();
+      const peerId = row.thread.firstUserId === owner.id ? row.thread.secondUserId : row.thread.firstUserId;
+      if (!await this.gate(tx, owner.id, peerId)) this.unavailable();
+      const mine = row.senderId === owner.id;
+      if (scope === 'everyone' && !mine) throw new ForbiddenException({ code: 'CHAT_NOT_AUTHOR', message: 'Only the author can unsend a message.' });
+      const now = new Date();
+      if (scope === 'everyone') {
+        if (row.erasedAt) return { peerId, changed: false };
+        await tx.chatMessage.update({ where: { id: row.id }, data: { text: '', erasedAt: now } });
+      } else {
+        if (mine ? row.senderDeletedAt : row.recipientDeletedAt) return { peerId, changed: false };
+        const both = mine ? Boolean(row.recipientDeletedAt) : Boolean(row.senderDeletedAt);
+        await tx.chatMessage.update({ where: { id: row.id }, data: { ...(mine ? { senderDeletedAt: now } : { recipientDeletedAt: now }), ...(both && !row.erasedAt ? { text: '', erasedAt: now } : {}) } });
+      }
+      const entries = [{ ownerId: owner.id, kind: 'CHAT_CHANGED' as const, peerId, itemId: row.id }];
+      if (scope === 'everyone') entries.push({ ownerId: peerId, kind: 'CHAT_CHANGED', peerId: owner.id, itemId: row.id });
+      await this.events?.append(tx, entries);
+      return { peerId, changed: true };
+    });
+    if (affected.changed) { this.signal.notify(chatThreadId(owner.id, affected.peerId)); this.events?.notify(scope === 'everyone' ? [owner.id, affected.peerId] : [owner.id]); }
+    return { messageId, scope, removed: true as const };
   }
   async poll(subject: string, peerId: string, after: number, abort?: AbortSignal, durationMs = 10000): Promise<ChatPage> {
     const owner = await this.owner(subject); const count = this.polls.get(owner.id) ?? 0;
@@ -110,7 +150,7 @@ export class ChatService {
     const owner = await this.owner(subject);
     const result=await this.transaction(async tx => {
       await activeAccount(tx, owner.id);
-      const message = await tx.chatMessage.findFirst({ where: { id: messageId, AND: [releasedContent], erasedAt: null, senderId: { not: owner.id }, thread: { OR: [{ firstUserId: owner.id }, { secondUserId: owner.id }] } }, select: { id: true, senderId: true } });
+      const message = await tx.chatMessage.findFirst({ where: { id: messageId, AND: [releasedContent, chatVisibleTo(owner.id)], erasedAt: null, senderId: { not: owner.id }, thread: { OR: [{ firstUserId: owner.id }, { secondUserId: owner.id }] } }, select: { id: true, senderId: true } });
       if (!message) this.unavailable();
       const id = hash('chatreport', owner.id, messageId);
       const report = await tx.chatReport.findUnique({ where: { id } }) ?? await tx.chatReport.create({ data: { id, messageId, reporterId: owner.id, reason: input.reason, detail: input.detail?.trim() || null } });

@@ -1,7 +1,7 @@
 import type { WorldCapabilities, WorldReceipt, WorldReceiptResponse } from '@lantern-post/shared-types';
 import type { DraftController } from '../letters/draft';
 import type { PendingWorldLetter } from './world-contract';
-import { readWorldReceipt } from './world-contract';
+import { readWorldReceipt, worldDeliveryProblem } from './world-contract';
 export interface WorldDeliveryTransport { submit(input: PendingWorldLetter): Promise<WorldReceipt>; lookup(id: string): Promise<WorldReceiptResponse>; cancel(id: string, isSigned: boolean): Promise<WorldReceipt>; capabilities(signal?: AbortSignal): Promise<WorldCapabilities>; }
 interface Snapshot { busy: boolean; error: string | null; outcome?: 'DELIVERED' | 'REJECTED'; }
 export class WorldController {
@@ -21,7 +21,7 @@ export class WorldController {
       if (!result) { this.publish({ busy: false, error: 'Sharing is not confirmed. Check again, retry the same letter, or cancel and keep it.' }); return; }
       const receipt = readWorldReceipt(result, input.requestId, input.isSigned); if (!receipt) throw new Error('Unconfirmed sky outcome');
       const saved = this.draft.applyWorldReceipt(receipt); this.publish({ busy: false, outcome: receipt.outcome, error: saved ? null : 'The sky replied, but this device could not finish saving the outcome. Please retry cleanup.' });
-    } catch (error) { const code = error && typeof error === 'object' && 'code' in error ? error.code : null; this.publish({ busy: false, error: code === 'VOICE_STORAGE_FULL' ? 'The recording cabinet is full for now. Your recording stays here; you can cancel sharing and try later.' : code === 'MODERATION_UNAVAILABLE' ? 'Public sharing is resting. This letter has not been confirmed; you can cancel and keep it.' : 'We could not confirm sharing. Your letter stays sealed. Check its status or retry in a little while.' }); }
+    } catch (error) { this.publish({ busy: false, error: worldDeliveryProblem(error) }); }
     })(); this.task = task; void task.finally(() => { if (this.task === task) this.task = null; }); return task;
   }
 }

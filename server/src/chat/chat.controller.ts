@@ -5,7 +5,7 @@ import type { AuthIdentity } from '../auth/auth.identity';
 import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { CurrentIdentity } from '../auth/current-identity.decorator';
 import { RequestLimit } from '../safety/request-limits';
-import { ChatConfirmDto, ChatHistoryDto, ChatMessageDto, ChatPeerDto, ChatPollDto, ChatReportDto, ChatRequestDto, ChatSendDto } from './chat.dto';
+import { ChatConfirmDto, ChatHistoryDto, ChatMessageDto, ChatPeerDto, ChatPollDto, ChatRemoveDto, ChatReportDto, ChatRequestDto, ChatSendDto, ChatSyncDto } from './chat.dto';
 import { ChatService } from './chat.service';
 
 @Controller('chat') @ApiTags('friend-chat') @ApiBearerAuth('clerk-session') @UseGuards(ClerkAuthGuard)
@@ -13,6 +13,10 @@ export class ChatController {
   constructor(private readonly chat: ChatService) {}
   @Get('capabilities') @Header('Cache-Control', 'no-store')
   capabilities() { return this.chat.capabilities(); }
+  @Post(':peerId/sync') @HttpCode(200) @Header('Cache-Control', 'no-store') @RequestLimit('chat-sync', 60)
+  sync(@CurrentIdentity() owner: AuthIdentity, @Param() peer: ChatPeerDto, @Body() input: ChatSyncDto) { return this.chat.sync(owner.subject, peer.peerId, input.ids); }
+  @Post('messages/:messageId/remove') @HttpCode(200) @Header('Cache-Control', 'no-store') @RequestLimit('chat-remove', 60)
+  remove(@CurrentIdentity() owner: AuthIdentity, @Param() query: ChatMessageDto, @Body() input: ChatRemoveDto) { return this.chat.remove(owner.subject, query.messageId, input.scope); }
   @Get(':peerId') @Header('Cache-Control', 'no-store') @RequestLimit('chat-history', 60)
   history(@CurrentIdentity() owner: AuthIdentity, @Param() peer: ChatPeerDto, @Query() query: ChatHistoryDto) {
     if (query.before !== undefined && query.after !== undefined) throw new BadRequestException('Choose one history direction.');
