@@ -4,7 +4,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-au
 import { voiceTime } from './voice-contract';
 import { pauseVoicePlayback, registerVoicePlayer } from './playback-registry';
 import { serif } from '../storybook/theme';
-import { startVoicePlayback } from './playback-operation';
+import { playbackHasEnded, startVoicePlayback } from './playback-operation';
 export function VoicePlayer({ uri, durationMs, label = 'Voice letter' }: { uri: string; durationMs: number; label?: string }) {
   const player = useAudioPlayer({ uri }, { updateInterval: 250 }); const state = useAudioPlayerStatus(player); const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const generation = useRef(0), running = useRef(false), mounted = useRef(true);
@@ -24,12 +24,15 @@ export function VoicePlayer({ uri, durationMs, label = 'Voice letter' }: { uri: 
     running.current = true; setBusy(true);
     const timer = setTimeout(() => { if (current()) { generation.current++; running.current = false; setBusy(false); player.pause(); setError('The recording took too long to restart. Please try again.'); } }, 8000);
     try {
-      await startVoicePlayback(player, () => setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'doNotMix' }), current, restart || state.didJustFinish);
+      await startVoicePlayback({
+        pause: () => player.pause(), play: () => player.play(), seekTo: seconds => player.seekTo(seconds),
+        reload: () => player.replace({ uri }), status: () => player.currentStatus,
+      }, () => setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true, shouldPlayInBackground: false, interruptionMode: 'doNotMix' }), current, restart || playbackHasEnded(player.currentStatus));
     } catch { if (current()) setError('The recording could not be played. Please try again.'); }
     finally { clearTimeout(timer); if (current()) { running.current = false; setBusy(false); } }
   };
   return <View style={styles.player}><Text style={styles.label}>{label}</Text><Text style={styles.time}>{voiceTime((state.currentTime ?? 0) * 1000)} / {voiceTime(durationMs)}</Text>
-    <View style={styles.buttons}><Pressable accessibilityRole="button" accessibilityLabel="Restart voice letter" onPress={() => { void play(true); }} disabled={busy || !state.isLoaded} style={styles.secondary}><Text style={styles.label}>↶ Restart</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={state.playing ? 'Pause voice letter' : 'Play voice letter'} onPress={() => { void play(); }} disabled={busy || (!state.isLoaded && !state.playing)} style={styles.play}><Text style={styles.playText}>{state.playing ? 'Ⅱ' : '▶'}</Text></Pressable></View>
+    <View style={styles.buttons}><Pressable accessibilityRole="button" accessibilityLabel="Restart voice letter" accessibilityState={{ disabled: busy }} onPress={() => { void play(true); }} disabled={busy} style={[styles.secondary, busy && { opacity: .5 }]}><Text style={styles.label}>↶ Restart</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={state.playing ? 'Pause voice letter' : 'Play voice letter'} onPress={() => { void play(); }} disabled={busy || (!state.isLoaded && !state.playing)} style={styles.play}><Text style={styles.playText}>{state.playing ? 'Ⅱ' : '▶'}</Text></Pressable></View>
     {busy ? <Text style={styles.time}>Preparing playback…</Text> : !state.isLoaded && !state.error && <Text style={styles.time}>{state.isBuffering ? 'Buffering your recording…' : 'Opening your recording…'}</Text>}
     {Boolean(error || state.error) && <Text role="alert" style={styles.error}>{error ?? 'This recording is unavailable. Reopen the letter to refresh it.'}</Text>}
   </View>;

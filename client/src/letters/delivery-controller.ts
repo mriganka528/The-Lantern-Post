@@ -1,6 +1,7 @@
 import type { DeliveryCapabilities, DeliveryReceipt, DeliveryReceiptResponse, LetterRecipient } from '@lantern-post/shared-types';
 import type { DraftController, PendingFriendDelivery } from './draft';
 import { readDeliveryReceipt } from './delivery-contract';
+import { voicePreparationProblem } from '../voice/voice-upload';
 
 export interface DeliveryTransport {
   submit(input: PendingFriendDelivery): Promise<DeliveryReceipt>;
@@ -39,9 +40,12 @@ export class DeliveryController {
         const saved = this.draft.applyDeliveryReceipt(receipt);
         this.publish({ busy: false, outcome: receipt.outcome, error: saved ? null : 'The reply arrived, but this device could not finish saving it. Please try again.' });
       } catch (error) {
+        const preparation = voicePreparationProblem(error);
+        if (preparation) { this.publish({ busy: false, error: preparation }); return; }
         if (error && typeof error === 'object' && 'status' in error && error.status === 429) { this.publish({ busy: false, error: 'The palace post needs a short rest. Your letter stays sealed. Wait a minute before retrying, or check its status.' }); return; }
         const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
         if(code==='VOICE_STORAGE_FULL'){this.publish({busy:false,error:'The recording cabinet is full for now. Your recording stays here; you can cancel this delivery and try later.'});return;}
+        if(code==='VOICE_STORAGE_UNAVAILABLE'){this.publish({busy:false,error:'Voice delivery is temporarily unavailable. Your recording is kept; check its status before retrying.'});return;}
         const expired = ['VOICE_UPLOAD_EXPIRED', 'VOICE_UPLOAD_MISMATCH', 'VOICE_INVALID'].includes(String(code));
         this.publish({ busy: false, error: expired ? 'The recording upload could not be used. Cancel this delivery to keep your recording, then start a fresh delivery or record again.' : code === 'MODERATION_UNAVAILABLE' ? 'The palace post cannot check this letter right now. It stays sealed here; you can cancel this delivery and keep it.' : 'We couldn’t confirm the delivery. Check its status or retry the same letter when you are connected.' });
       }

@@ -2,6 +2,7 @@ import type { WorldBounds, WorldCapabilities, WorldLetter, WorldPage, WorldRecei
 import { apiRequest } from '../api/client';
 import type { GetSessionToken } from '../api/client';
 import { voiceStorage } from '../voice/voice-storage';
+import { prepareVoiceUpload } from '../voice/voice-upload';
 import type { WorldDeliveryTransport } from './world-controller';
 export interface InfinityTransport { list(bounds: WorldBounds, cursor?: string | null, signal?: AbortSignal): Promise<WorldPage>; mine(cursor?: string | null, signal?: AbortSignal): Promise<WorldPage>; open(id: string, signal?: AbortSignal): Promise<WorldLetter>; remove(id: string): Promise<{ deleted: true }>; block(id: string): Promise<{ blocked: true }>; }
 export function createInfinityTransport(token: GetSessionToken): InfinityTransport {
@@ -18,7 +19,7 @@ export function createWorldDeliveryTransport(token: GetSessionToken, ownerId: st
     submit: async input => {
       if (input.type === 'TEXT') return apiRequest('/letters', token, { method: 'POST', body: input });
       const existing = await apiRequest<WorldReceiptResponse>(`/infinity/requests/${encodeURIComponent(input.requestId)}`, token); if (existing.receipt) return existing.receipt;
-      const bytes = await voiceStorage.read(ownerId, input.voice); const sha256 = await voiceStorage.sha256(bytes);
+      const { bytes, sha256 } = await prepareVoiceUpload(voiceStorage, ownerId, input.voice);
       const grant = await apiRequest<VoiceUploadGrant>('/voice/uploads', token, { method: 'POST', body: { requestId: input.requestId, destinationType: 'INFINITY', mimeType: input.voice.mimeType, byteLength: input.voice.byteLength, durationMs: input.voice.durationMs, sha256 } });
       if (!/^voice_[a-f0-9]{64}$/.test(grant.assetId)) throw new Error('Invalid recording grant');
       let ready=false;

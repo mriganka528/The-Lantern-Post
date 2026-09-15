@@ -1,4 +1,5 @@
 import type { VoiceClip, WorldReceipt, WorldRejection, WorldTextRequest } from '@lantern-post/shared-types';
+import { voicePreparationProblem } from '../voice/voice-upload';
 export type PendingWorldLetter = WorldTextRequest | (Omit<WorldTextRequest, 'type' | 'textContent'> & { type: 'VOICE'; voice: VoiceClip; voiceCaption?: string });
 const rejections: WorldRejection[] = ['PRESET_UNAVAILABLE', 'CONTENT_NOT_ALLOWED', 'DELIVERY_LIMIT', 'VOICE_UNAVAILABLE', 'CANCELLED'];
 export function readWorldReceipt(value: unknown, requestId: string, isSigned: boolean): WorldReceipt | null {
@@ -15,6 +16,7 @@ export function worldRejectionMessage(reason: WorldRejection | null) {
   return 'Sharing was cancelled. Your sealed letter is still here with you.';
 }
 export function worldDeliveryProblem(error: unknown): string {
+  const preparation = voicePreparationProblem(error); if (preparation) return preparation;
   const value = error && typeof error === 'object' ? error as { code?: unknown; status?: unknown; name?: unknown } : {};
   if (value.code === 'VOICE_STORAGE_FULL') return 'The recording cabinet is full for now. Your recording stays here; you can cancel sharing and try later.';
   if (value.code === 'VOICE_UPLOAD_EXPIRED') return 'This recording upload expired. Check its status, or cancel sharing and send the saved recording again.';

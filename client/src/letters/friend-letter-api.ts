@@ -3,6 +3,7 @@ import { apiRequest } from '../api/client';
 import type { GetSessionToken } from '../api/client';
 import type { DeliveryTransport } from './delivery-controller';
 import { voiceStorage } from '../voice/voice-storage';
+import { prepareVoiceUpload } from '../voice/voice-upload';
 export function createDeliveryTransport(getToken: GetSessionToken, ownerId = ''): DeliveryTransport {
   return {
     submit: async input => {
@@ -10,7 +11,7 @@ export function createDeliveryTransport(getToken: GetSessionToken, ownerId = '')
       const existing = await apiRequest<DeliveryReceiptResponse>(`/letters/friends/requests/${encodeURIComponent(input.requestId)}`, getToken);
       if (existing.receipt) return existing.receipt;
       if (!ownerId) throw new Error('A recording owner is required.');
-      const bytes = await voiceStorage.read(ownerId, input.voice); const sha256 = await voiceStorage.sha256(bytes);
+      const { bytes, sha256 } = await prepareVoiceUpload(voiceStorage, ownerId, input.voice);
       const grant = await apiRequest<VoiceUploadGrant>('/voice/uploads', getToken, { method: 'POST', body: { requestId: input.requestId, recipientId: input.recipientId, mimeType: input.voice.mimeType, byteLength: input.voice.byteLength, durationMs: input.voice.durationMs, sha256 } });
       if (!/^voice_[a-f0-9]{64}$/.test(grant.assetId)) throw new Error('Invalid recording grant.');
       let ready=false;

@@ -1,5 +1,10 @@
 // Hermes does not guarantee browser globals such as btoa. Encode the binary
 // SHA-256 digest directly; hashing a string representation changes the hash.
+export async function hashNativeVoice(bytes: Uint8Array, digest: (data: Uint8Array<ArrayBuffer>) => Promise<ArrayBuffer>): Promise<string> {
+  // The native ExpoCrypto bridge takes TypedArray, although its JS signature
+  // also accepts ArrayBuffer. Preserve the view and copy only these bytes.
+  return voiceDigestBase64(await digest(new Uint8Array(bytes)));
+}
 export function voiceDigestBase64(digest: ArrayBuffer): string {
   const bytes = new Uint8Array(digest);
   if (bytes.length !== 32) throw Error('Invalid recording digest');
