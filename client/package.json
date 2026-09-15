@@ -22,6 +22,7 @@
     "@lantern-post/shared-types": "0.0.0",
     "@react-native-google-signin/google-signin": "16.1.5",
     "@tanstack/react-query": "^5.0.0",
+    "@wrack/react-native-tour-guide": "2.0.0",
     "expo": "~57.0.21",
     "expo-asset": "~57.0.17",
     "expo-audio": "~57.0.5",
@@ -44,6 +45,7 @@
     "react-native": "0.86.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4",
     "react-native-view-shot": "^5.1.0",
     "react-native-web": "~0.21.0",
     "zustand": "^5.0.0"

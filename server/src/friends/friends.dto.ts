@@ -1,11 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import type { TransformFnParams } from 'class-transformer';
-import { IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
+import { Equals, IsBoolean, IsIn, IsOptional, IsString, Length, Matches } from 'class-validator';
 import type { FriendsView, RespondFriendRequest } from '@lantern-post/shared-types';
 import { UsernameQueryDto } from '../users/users.dto';
 
 export class FriendSearchDto extends UsernameQueryDto {}
+export class RemoveFriendDto {
+  @ApiProperty({ enum: [true] }) @IsBoolean() @Equals(true) confirmed!: true;
+}
 export class SendFriendDto extends UsernameQueryDto {}
 export class FriendListDto {
   @ApiPropertyOptional({ enum: ['friends', 'incoming', 'outgoing'], default: 'friends' })

@@ -4,14 +4,14 @@ import { ActivityIndicator, Image, Keyboard, Pressable, StyleSheet, Text, TextIn
 import type { FriendConnection, FriendPerson, FriendSearchResult, FriendsView } from '@lantern-post/shared-types';
 import { CharacterArt } from '../storybook/character-art';
 import { StoryIcon } from '../storybook/ornaments';
-import { StoryButton, StoryHeading, StoryShell, TextAction, s } from '../storybook/story-ui';
+import { StoryButton, StoryDialog, StoryHeading, StoryShell, TextAction, s } from '../storybook/story-ui';
 import { ink, mutedInk, serif } from '../storybook/theme';
 import { PalaceCrest } from '../letters/antique-assets';
 import { WaxSeal } from '../letters/stationery';
 import { FriendGate, FriendGateVisit } from './friend-gate';
 import { friendErrorMessage, normalizeFriendSearch, validFriendSearch } from './friends-api';
 import type { FriendsTransport } from './friends-api';
-import { useFriendAction, useFriendSearch, useFriendsList, useFriendsSummary } from './use-friends-data';
+import { useFriendAction, useFriendSearch, useFriendsList, useFriendsSummary, useUnfriend } from './use-friends-data';
 import type { SafetyTransport } from '../safety/safety-api';
 import { BlockPalaceDialog, ClosedGates } from '../safety/safety-controls';
 import { UsernameCard } from './username-card';
@@ -24,6 +24,8 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
   const [visit, setVisit] = useState<{ person: FriendPerson; newlyAccepted: boolean } | null>(null);
   const [decline, setDecline] = useState<FriendConnection | null>(null);
   const [blocking, setBlocking] = useState<FriendPerson | null>(null);
+  const [removing, setRemoving] = useState<FriendConnection | null>(null);
+  const removal = useUnfriend(api, ownerId);
   const summary = useFriendsSummary(api, ownerId);
   const list = useFriendsList(api, ownerId, tab);
   const search = useFriendSearch(api, ownerId, query);
@@ -82,7 +84,7 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
         <StoryIcon kind={tab === 'friends' ? 'gate' : 'letter'} size={39} /><Text style={styles.emptyTitle}>{tab === 'friends' ? 'Every friendship begins with a little hello.' : tab === 'incoming' ? 'The gate is quiet, for now.' : 'A fresh page in the guestbook.'}</Text>
         <Text style={styles.emptyBody}>{tab === 'friends' ? 'Find a friend above and leave an invitation. When it is accepted, their gate will find a place here.' : tab === 'incoming' ? `Share @${username} with someone you know. Their invitation will be waiting here.` : 'Your sent invitations will rest here while you wait for a reply.'}</Text>
       </View> : <View style={tab === 'friends' ? styles.gates : styles.requests}>
-        {entries.map(entry => tab === 'friends' ? <FriendGate key={entry.id} person={entry.person} onPress={() => setVisit({ person: entry.person, newlyAccepted: false })} /> : <View key={entry.id} style={styles.invitation}>
+        {entries.map(entry => tab === 'friends' ? <View key={entry.id} style={{gap:6,maxWidth:'100%'}}><FriendGate person={entry.person} onPress={() => setVisit({ person: entry.person, newlyAccepted: false })} />{api.unfriend && <TextAction label={`Unfriend ${entry.person.username}`} onPress={()=>{removal.reset();setRemoving(entry);}} />}</View> : <View key={entry.id} style={styles.invitation}>
           <PersonHeading person={entry.person} /><Text style={styles.invitationCopy}>{tab === 'incoming' ? 'A sealed invitation to join your circle.' : 'Your invitation is waiting at their gate.'}</Text>{safety && <TextAction label={`Block ${entry.person.username}`} onPress={() => setBlocking(entry.person)} />}
           {tab === 'incoming' ? decline?.id === entry.id ? <View style={styles.reply}><Text style={s.body}>Let this invitation pass?</Text><TextAction label={`Keep invitation from ${entry.person.username}`} onPress={() => setDecline(null)} disabled={action.isPending} /><StoryButton label={`Decline ${entry.person.username}'s invitation`} secondary onPress={() => { void act({ kind: 'decline', id: entry.id }); }} disabled={action.isPending} /></View> : <View style={styles.reply}><StoryButton label={`Welcome ${entry.person.username}`} onPress={() => { void act({ kind: 'accept', id: entry.id }); }} disabled={action.isPending} /><TextAction label={`Decline invitation from ${entry.person.username}`} onPress={() => setDecline(entry)} disabled={action.isPending} /></View> : <Text style={styles.waitingReply}>AWAITING A REPLY</Text>}
         </View>)}
@@ -94,6 +96,7 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
     </StoryShell>
     {visit && <FriendGateVisit person={visit.person} newlyAccepted={visit.newlyAccepted} onClose={() => setVisit(null)} onWrite={onWrite ? () => { const person = visit.person; setVisit(null); onWrite(person); } : undefined} onChat={onChat ? () => { const person = visit.person; setVisit(null); onChat(person); } : undefined} onBlock={safety ? () => { setBlocking(visit.person); setVisit(null); } : undefined} />}
     {blocking && safety && <BlockPalaceDialog ownerId={ownerId} person={blocking} api={safety} onClose={() => setBlocking(null)} onSaved={() => { setBlocking(null); setQuery(''); setName(''); setNotice('The gate has been closed. You can manage it in My closed gates.'); }} />}
+    {removing && <StoryDialog title={`Unfriend ${removing.person.username}?`} onClose={()=>{if(!removal.isPending)setRemoving(null);}}><Text style={s.body}>Your friendship gates and chat will close. No letters are deleted and neither person is blocked. You can send a new invitation after 24 hours; they must accept before the gates reopen.</Text>{removal.isError&&<Text role="alert" style={s.body}>{friendErrorMessage(removal.error)}</Text>}<StoryButton label={removal.isPending?'Closing the friendship…':'Confirm unfriend'} disabled={removal.isPending} onPress={()=>{void removal.mutateAsync(removing.id).then(()=>{setRemoving(null);setVisit(null);setNotice('The friendship has been closed. Your letters have not been deleted.');}).catch(()=>{});}} /><StoryButton label="Keep friendship" secondary disabled={removal.isPending} onPress={()=>setRemoving(null)} /></StoryDialog>}
   </>;
 }
 function SearchCard({ result, busy, onSend, onIncoming, onFriends }: { result: FriendSearchResult; busy: boolean; onSend: () => void; onIncoming: () => void; onFriends: () => void }) {

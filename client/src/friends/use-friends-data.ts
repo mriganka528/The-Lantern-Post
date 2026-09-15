@@ -4,6 +4,11 @@ import type { FriendsView } from '@lantern-post/shared-types';
 import type { FriendsTransport } from './friends-api';
 
 export const friendsKey = (ownerId: string) => ['friends', ownerId] as const;
+export function useUnfriend(api: FriendsTransport, ownerId: string) {
+  const cache = useQueryClient();
+  return useMutation({ mutationFn: (id: string) => { if (!api.unfriend) throw Error('Unfriend is unavailable'); return api.unfriend(id); },
+    onSettled: () => cache.invalidateQueries({ queryKey: friendsKey(ownerId) }) });
+}
 export function useFriendsSummary(api: FriendsTransport, ownerId: string, enabled = true) {
   const live=usePalaceConnection(ownerId);
   return useQuery({ queryKey: [...friendsKey(ownerId), 'summary'], queryFn: ({ signal }) => api.summary(signal), enabled, staleTime: 10_000, refetchInterval: enabled && !live ? 30_000 : false });

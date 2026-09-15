@@ -8,6 +8,7 @@ export interface FriendsTransport {
   summary(signal?: AbortSignal): Promise<FriendSummary>;
   send(username: string): Promise<FriendConnection>;
   respond(id: string, action: 'accept' | 'decline'): Promise<FriendConnection>;
+  unfriend?(id: string): Promise<{ removed: true }>;
 }
 export const normalizeFriendSearch = (value: string) => value.trim().replace(/^@/, '').toLowerCase();
 export const validFriendSearch = (value: string) => /^[a-z0-9_]{3,24}$/.test(normalizeFriendSearch(value));
@@ -18,6 +19,7 @@ export function createFriendsTransport(getToken: GetSessionToken): FriendsTransp
     summary: signal => apiRequest('/friends/summary', getToken, { signal }),
     send: username => apiRequest('/friends/requests', getToken, { method: 'POST', body: { username: normalizeFriendSearch(username) } }),
     respond: (id, action) => apiRequest(`/friends/requests/${encodeURIComponent(id)}/respond`, getToken, { method: 'POST', body: { action } }),
+    unfriend: id => apiRequest(`/friends/${encodeURIComponent(id)}/remove`, getToken, { method: 'POST', body: { confirmed: true } }),
   };
 }
 export function friendErrorMessage(error: unknown) {

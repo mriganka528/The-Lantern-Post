@@ -106,4 +106,25 @@ export class FriendsService {
       return connection(updated, owner.id);
     }); this.events?.notify([owner.id,result.person.id]);return result;
   }
+  async remove(authProviderId: string, id: string) {
+    const owner = await this.owner(authProviderId);
+    const peer = await this.transaction(async tx => {
+      await activeAccount(tx, owner.id);
+      // Bind confirmation/retry to this friendship ID, never a replacement
+      // invitation that may have been created later for the same two people.
+      const row = await tx.friendRequest.findFirst({ where: { AND: [visibleConnections(owner.id), { id }] }, select: connectionSelect });
+      if (!row) throw new NotFoundException({ code: 'FRIENDSHIP_MISSING', message: 'This friendship is no longer available. Refresh the guestbook.' });
+      if (row.status !== 'ACCEPTED' && row.status !== 'DECLINED') throw new ConflictException({ code: 'FRIENDSHIP_CHANGED', message: 'Only an accepted friendship can be removed.' });
+      const peerId = row.fromUserId === owner.id ? row.toUserId : row.fromUserId;
+      if (row.status === 'DECLINED') return peerId;
+      await tx.friendRequest.update({ where: { id: row.id }, data: { status: 'DECLINED', respondedAt: new Date() } });
+      // Keep receipts, letters and existing block records. Uncommitted voice
+      // uploads are queued for cleanup because this delivery gate is closed.
+      await tx.voiceAsset.updateMany({ where: { status: { in: ['UPLOADING','READY'] }, OR: [{ ownerId: owner.id, recipientId: peerId }, { ownerId: peerId, recipientId: owner.id }] }, data: { status: 'DELETED', sha256: null, purgeAfter: new Date() } });
+      await this.events?.append(tx, [{ ownerId: owner.id, kind: 'GATES_CHANGED', peerId }, { ownerId: peerId, kind: 'GATES_CHANGED', peerId: owner.id }]);
+      return peerId;
+    });
+    this.events?.notify([owner.id, peer]);
+    return { removed: true as const };
+  }
 }

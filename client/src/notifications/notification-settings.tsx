@@ -17,7 +17,7 @@ export async function disableDevicePush(ownerId: string, getToken: GetSessionTok
   if (record) await apiRequest('/notifications/unregister', getToken, { method: 'POST', body: { token: record.token } });
   await removePush(ownerId); notifyPushChange();
 }
-export function NotificationSettings({ ownerId, getToken }: { ownerId: string; getToken: GetSessionToken }) {
+export function NotificationSettings({ ownerId, getToken, compact = false }: { ownerId: string; getToken: GetSessionToken; compact?: boolean }) {
   const [welcomeStatus, setWelcomeStatus] = useState<string | null>(null);
   const [welcoming, setWelcoming] = useState(false);
   const [enabled, setEnabled] = useState(false); const [available, setAvailable] = useState(false);
@@ -44,7 +44,7 @@ export function NotificationSettings({ ownerId, getToken }: { ownerId: string; g
     } catch { if (mounted.current) setError('Device alerts could not be changed. Check notification permission in your device settings and try again.'); }
     finally { if (mounted.current) setBusy(false); }
   }
-  return <View style={styles.panel}><View style={styles.heading}><StoryIcon kind="key" size={23} /><Text style={styles.title}>The palace bells</Text></View>
+  return <View style={[styles.panel, compact && { marginTop: 0, borderTopWidth: 0, paddingTop: 0, alignItems: 'stretch' }]}><View style={styles.heading}><StoryIcon kind="bell" size={21} /><Text style={styles.title}>The palace bells</Text></View>
     <PalaceAlertSettings ownerId={ownerId}/>
     {welcomeAvailable() && <><StoryButton label={welcoming ? 'Ringing the welcome bell…' : 'Receive my welcome note'} secondary disabled={welcoming} onPress={() => {
       setWelcoming(true); void ensureWelcome(true).then(result => setWelcomeStatus(result === 'complete' ? 'Your welcome note has been sent to this phone’s notifications. It is sent only once.' : 'Allow notifications in your phone settings to receive your welcome note.')).catch(() => setWelcomeStatus('The welcome note could not be prepared. Please try again.')).finally(() => setWelcoming(false));

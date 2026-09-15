@@ -12,7 +12,7 @@ export function cleanVoiceClip(value: unknown): VoiceClip | null {
 export function voiceTime(ms: number) { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
 export interface VoiceRecording { bytes: Uint8Array; mimeType: VoiceClip['mimeType']; durationMs: number; }
 export interface VoiceCapture { stop(): Promise<VoiceRecording>; cancel(): void; }
-export interface VoiceRecorderDriver { available(): boolean; start(onMeter: (level: number) => void, onEnded: () => void, signal?: AbortSignal): Promise<VoiceCapture>; }
+export interface VoiceRecorderDriver { available(): boolean; permissionPromptActive?(signal: AbortSignal | undefined): boolean; start(onMeter: (level: number) => void, onEnded: () => void, signal?: AbortSignal): Promise<VoiceCapture>; }
 export interface VoiceStore {
   save(ownerId: string, clip: VoiceClip, bytes: Uint8Array): Promise<void>;
   read(ownerId: string, clip: VoiceClip): Promise<Uint8Array>;

@@ -35,15 +35,31 @@ export async function checkPalaceBell({ page, backend, output, errors }) {
     await bell().click(); await notice(eventFor(letter.letterId).id).waitFor(); await notice(eventFor(chat.messageId).id).waitFor();
     const rows = await bob.locator('[data-testid^="bell-notice-"]').allTextContents(); assert.ok(!rows.join('').includes('PRIVATE_BELL'));
     await bob.screenshot({ path: resolve(output, '02-letter-and-chat-notifications.png') });
-    await button('Mark all notifications as seen').click(); await badge(0); await button('Close the bells').click();
+    await badge(0);
+    async function swipe(id,direction) {
+      await notice(id).scrollIntoViewIfNeeded(); const box=await notice(id).boundingBox();
+      const x=box.x+box.width*(direction>0?.25:.75),y=box.y+box.height*.7;
+      await bob.mouse.move(x,y);await bob.mouse.down();await bob.mouse.move(x+direction*115,y+3,{steps:12});await bob.mouse.up();
+      await notice(id).waitFor({state:'detached'});
+    }
+    await swipe(eventFor(chat.messageId).id,1);
+    assert.ok(backend.fixture.state.chatMessages.some(m=>m.id===chat.messageId),'dismissal keeps the message');
+    const leftDismiss=await message('Dismiss this notice to the left.');await notice(eventFor(leftDismiss.messageId).id).waitFor();await badge(0);await swipe(eventFor(leftDismiss.messageId).id,-1);
+    await button('Close the bells').click();
     await Promise.all([bob.waitForResponse(response => response.url().endsWith('/notifications/inbox') && response.status() === 200), bob.reload()]); await home(); await badge(0);
-    await bell().click(); await notice(eventFor(letter.letterId).id).click();
+    await bell().click(); assert.equal(await notice(eventFor(chat.messageId).id).count(),0,'dismissal persists after reload'); await notice(eventFor(letter.letterId).id).click();
     await button('Open letter from alice, unopened').click(); await button('Break the seal').click(); await bob.getByText('PRIVATE_BELL_LETTER_WORDS', { exact: true }).waitFor();
     await button('Remove this letter').click(); await button('Remove from my letterbox').click();
     await bell().click(); await bob.waitForFunction(id => !document.querySelector(`[data-testid="bell-notice-${id}"]`), eventFor(letter.letterId).id); await button('Close the bells').click();
     const next = await message('A second whisper for the bell.'); await badge(1); await bell().click(); await notice(eventFor(next.messageId).id).click();
     await bob.getByTestId('chat-transcript').getByText('A second whisper for the bell.', { exact: true }).waitFor(); await badge(0);
     await message('Already visible in this open chat.'); await bob.getByTestId('chat-transcript').getByText('Already visible in this open chat.', { exact: true }).waitFor(); await badge(0);
+    for(let i=0;i<10;i++)await message('Scrollable earlier message '+i);
+    const transcript=bob.getByTestId('chat-transcript');await transcript.getByText('Scrollable earlier message 9',{exact:true}).waitFor();await transcript.scrollIntoViewIfNeeded();
+    await transcript.hover();const beforeScroll=await transcript.evaluate(el=>el.scrollTop);assert.ok(beforeScroll>0);
+    await bob.mouse.wheel(0,-1100);await bob.waitForFunction(before=>document.querySelector('[data-testid="chat-transcript"]').scrollTop<before,beforeScroll);
+    const readingAt=await transcript.evaluate(el=>el.scrollTop);await message('Arrives while reading earlier messages.');await transcript.getByText('Arrives while reading earlier messages.',{exact:true}).waitFor({state:'attached'});await bob.waitForTimeout(100);
+    assert.ok(await transcript.evaluate(el=>el.scrollTop)<=readingAt+2,'new arrivals do not jump away from earlier messages');
     // An arrival older than the popup window still appears after reopening.
     await bob.goto('about:blank'); const missed = await message('A message while the palace was closed.'); eventFor(missed.messageId).createdAt = new Date(Date.now() - 3600000);
     await bob.goto(url.href); await home(); await badge(1); await bell().click(); await notice(eventFor(missed.messageId).id).waitFor(); await button('Close the bells').click();
@@ -71,6 +87,6 @@ export async function checkPalaceBell({ page, backend, output, errors }) {
     if (await button('Skip to my palace').isVisible()) await button('Skip to my palace').click();
     await bell().click(); await bob.getByTestId('palace-notifications-empty').waitFor();
     assert.deepEqual(errors, []);
-    console.log('Palace bell checks passed: live letter/chat badges with popups off, persistent seen state, navigation, independent deletion, active-chat suppression, offline arrivals, block removal, account isolation and one compact bell across phone/desktop/desk headers.');
+    console.log('Palace bell checks passed: mark seen on open, both swipe directions, persistent dismissals without deleting messages, scrollable chat history without forced jumps, live badges, independent letter deletion, active-chat suppression, offline arrivals, account isolation and navigation guards.');
   } finally { await bob.unrouteAll({ behavior: 'ignoreErrors' }); await context.close(); }
 }

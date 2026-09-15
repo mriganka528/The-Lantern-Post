@@ -12,6 +12,40 @@ const reply = (id: string, action = 'accept', token = 'bob') => request(`/friend
 const list = (token = 'alice', view = 'friends', cursor = '') => request(`/friends?view=${view}${cursor ? `&cursor=${cursor}` : ''}`, token);
 const expoToken = 'ExponentPushToken[synthetic-device-token-001]';
 
+test('either friend can unfriend once, with current-ID retries and no new block or content deletion', async () => {
+  const invitation=await (await send()).json() as FriendConnection;await reply(invitation.id);
+  context.fixture.state.voiceAssets.push({id:'pending-private-audio',ownerId:'owner-alice',recipientId:'owner-bob',status:'UPLOADING',sha256:'pending'});
+  const beforeLetters=JSON.stringify(context.fixture.state.letters);
+  const remove=()=>request(`/friends/${invitation.id}/remove`,'alice',{confirmed:true});
+  assert.equal((await remove()).status,200);assert.equal((await remove()).status,200);
+  assert.equal((await (await list()).json() as FriendsPage).items.length,0);
+  assert.equal((await (await list('bob')).json() as FriendsPage).items.length,0);
+  assert.equal(context.fixture.state.blocks.length,0);assert.equal(JSON.stringify(context.fixture.state.letters),beforeLetters);
+  assert.equal(context.fixture.state.voiceAssets.find(a=>a.id==='pending-private-audio')!.status,'DELETED');
+  assert.ok(context.fixture.state.events.some(e=>e.ownerId==='owner-alice'&&e.kind==='GATES_CHANGED'));
+  assert.ok(context.fixture.state.events.some(e=>e.ownerId==='owner-bob'&&e.kind==='GATES_CHANGED'));
+  // The usual invitation cooldown remains; a later friendship gets a fresh ID.
+  context.fixture.state.requests.find(r=>r.id===invitation.id)!.respondedAt=new Date(Date.now()-86401000);
+  const fresh=await (await send()).json() as FriendConnection;await reply(fresh.id);
+  assert.notEqual(fresh.id,invitation.id);assert.equal((await remove()).status,404);
+  assert.equal((await (await list()).json() as FriendsPage).items.length,1);
+  assert.equal((await request(`/friends/${fresh.id}/remove`,'bob',{confirmed:true})).status,200);
+});
+
+test('unfriend requires authentication, explicit confirmation and membership of an accepted friendship', async()=>{
+  const invitation=await (await send()).json() as FriendConnection;
+  const path=`/friends/${invitation.id}/remove`;
+  assert.equal((await request(path,'',{confirmed:true})).status,401);
+  assert.equal((await request(path,'alice',{confirmed:false})).status,400);
+  assert.equal((await request(path,'alice',{confirmed:true,ownerId:'owner-bob'})).status,400);
+  assert.equal((await request(path,'alice',{confirmed:true})).status,409);
+  await reply(invitation.id);
+  assert.equal((await request(path,'carol',{confirmed:true})).status,404);
+  context.fixture.state.blocks.push({blockerId:'owner-alice',blockedId:'owner-bob'});
+  assert.equal((await request(path,'alice',{confirmed:true})).status,404);
+  assert.equal(context.fixture.state.blocks.length,1);
+});
+
 test('friend and device-token endpoints require authentication before any database read', async () => {
   for (const [path, body] of [['/friends', undefined], ['/friends/search?username=bob', undefined], ['/friends/summary', undefined], ['/friends/requests', { username: 'bob' }], ['/friends/requests/foreign/respond', { action: 'accept' }], ['/notifications/register', { token: expoToken, platform: 'ios' }], ['/notifications/unregister', { token: expoToken }], ['/notifications/settings', undefined]] as const) {
     assert.equal((await request(path, '', body)).status, 401); assert.equal((await request(path, 'forged', body)).status, 401);

@@ -27,7 +27,7 @@ export function PalaceHome({ character, username, onCompanions, onAccount, onWri
   const wide = width >= 850;
   const small = width < 600;
   return <>
-    <StoryShell chapter="YOUR LITTLE WORLD" scrollRef={guide?.scrollRef} onScroll={guide?.onScroll} scrollEnabled={!guide?.active} actions={<><GuidanceTarget id="companions"><TextAction label="Companions" onPress={onCompanions} /></GuidanceTarget>{guide && <TextAction label="Guidance" onPress={guide.start} />}<GuidanceTarget id="account"><TextAction label="Account" onPress={onAccount} /></GuidanceTarget></>}>
+    <StoryShell chapter="YOUR LITTLE WORLD" scrollRef={guide?.scrollRef} onScroll={guide?.onScroll} onMomentumScrollEnd={guide?.onMomentumScrollEnd} scrollEnabled={!guide?.active} actions={<><GuidanceTarget id="companions"><TextAction label="Companions" onPress={onCompanions} /></GuidanceTarget><GuidanceTarget id="account"><TextAction label="Account" onPress={onAccount} /></GuidanceTarget></>}>
       <StoryHeading eyebrow="A LITTLE CORNER OF FOREVER" title={`Welcome home, ${username}.`} subtitle="Leave the noise of the world at the gate. There is room for all of you here." />
       <View style={styles.sceneHeader}><View style={styles.location}><StoryIcon kind="gate" size={19} /><Text style={styles.locationText}>{character.palace.name}</Text></View><View style={styles.homeTag}><View style={styles.homeDot} /><Text style={styles.homeTagText}>YOUR SANCTUARY</Text></View></View>
       <PalaceScene characterKey={character.key} paused={paused || arrival === 'gate'} arrival={arrival === 'gate' ? 'waiting' : arrival} onArrival={finishWalk} />

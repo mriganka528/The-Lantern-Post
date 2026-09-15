@@ -1,68 +1,67 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren, RefObject } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { TourGuideProvider, TourGuideOverlay, useTourGuide, useTourScroll } from '@wrack/react-native-tour-guide';
+import type { TourButtonProps, TourProgressProps, TourStep } from '@wrack/react-native-tour-guide';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GuidanceContext } from './guidance-context';
 import { GuidancePreference, guidanceSteps } from './guidance-model';
 import type { GuidanceTargetId } from './guidance-model';
 import { guidanceStorage } from './guidance-storage';
-import { GuidanceOverlay } from './guidance-overlay';
 import { useAppActive } from '../storybook/use-ambient-motion';
-import { usePalaceModalOpen } from '../realtime/palace-live-state';
+import { useBlockingPalaceModal, usePalaceModalOpen } from '../realtime/palace-live-state';
+import { useReducedMotion } from '../storybook/use-reduced-motion';
+import { serif } from '../storybook/theme';
 
 const preference = new GuidancePreference(guidanceStorage);
+const buttonStyle = { minHeight: 44, minWidth: 44, paddingHorizontal: 12, justifyContent: 'center' as const, alignItems: 'center' as const, borderRadius: 5 };
+function NextButton({ label, onPress, disabled, isLast }: TourButtonProps) { return <Pressable accessibilityRole="button" accessibilityLabel={isLast ? 'Finish guidance' : 'Next guidance step'} disabled={disabled} onPress={onPress} style={[buttonStyle,{backgroundColor:'#465448',opacity:disabled?.5:1}]}><Text style={{color:'#FFF8E9',fontSize:13}}>{label}</Text></Pressable>; }
+function PrevButton({ label, onPress }: TourButtonProps) { return <Pressable accessibilityRole="button" accessibilityLabel="Previous guidance step" onPress={onPress} style={buttonStyle}><Text style={{color:'#665944',fontSize:12}}>{label}</Text></Pressable>; }
+function SkipButton({ label, onPress }: TourButtonProps) { return <Pressable accessibilityRole="button" accessibilityLabel="Skip guidance" onPress={onPress} style={buttonStyle}><Text style={{color:'#7F6C4B',fontSize:12}}>{label}</Text></Pressable>; }
+function StepCounter({ currentStep, totalSteps }: TourProgressProps) { const {activeSteps}=useTourGuide(); return <Text testID="palace-guidance" nativeID={`guidance-step-${activeSteps[currentStep]?.id}`} style={{color:'#887043',fontSize:10}}>{currentStep+1} / {totalSteps}</Text>; }
+function TourModalLease() { useBlockingPalaceModal('guidance'); return null; }
 
-export function PalaceGuidanceProvider({ children, enabled = true }: PropsWithChildren<{ enabled?: boolean }>) {
-  const foreground = useAppActive();
-  // Our own overlay suppresses arrival popups, but must not suspend itself.
-  const anotherModal = usePalaceModalOpen(true);
-  const [ready, setReady] = useState(false);
-  const [index, setIndex] = useState<number | null>(null);
-  const [requested, setRequested] = useState(false);
-  const [preferenceError, setPreferenceError] = useState(false);
-  const [revision, setRevision] = useState(0);
-  const [targets, setTargets] = useState(() => new Map<GuidanceTargetId, RefObject<View | null>>());
-  const scrollRef = useRef<ScrollView>(null);
-  const scrollOffset = useRef(0);
-  const returnScroll = useRef(0);
-  const isTour = useRef(false);
-  useEffect(() => { isTour.current = index !== null; }, [index]);
-  const refresh = useCallback(() => { setRevision(value => value + 1); }, []);
-  const register = useCallback((id: GuidanceTargetId, ref: RefObject<View | null>) => {
-    setTargets(old => new Map(old).set(id, ref));
-    return () => { setTargets(old => { if (old.get(id) !== ref) return old; const next = new Map(old); next.delete(id); return next; }); };
-  }, []);
-  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    scrollOffset.current = event.nativeEvent.contentOffset.y;
-    if (isTour.current) refresh();
-  }, [refresh]);
-  const start = useCallback(() => { if (enabled) setRequested(true); }, [enabled]);
-  const retryPreference = useCallback(() => { setPreferenceError(!preference.retry()); }, []);
-  const finish = useCallback((outcome: 'skipped' | 'complete') => {
-    setPreferenceError(!preference.mark(outcome)); setRequested(false); setIndex(null);
-    scrollRef.current?.scrollTo({ y: returnScroll.current, animated: false });
-  }, []);
-  useEffect(() => {
-    if (enabled) return;
-    const timer = setTimeout(() => { setIndex(null); setRequested(false); }, 0);
-    return () => clearTimeout(timer);
-  }, [enabled]);
-  useEffect(() => {
-    if (!enabled || !foreground || !ready || anotherModal || index !== null) return;
-    const timer = setTimeout(() => {
-      if (requested) { returnScroll.current = scrollOffset.current; setPreferenceError(!preference.mark('seen')); setRequested(false); setIndex(0); }
-      else if (preference.claimAutomatic()) { returnScroll.current = scrollOffset.current; setPreferenceError(preference.needsRetry); setIndex(0); }
-    // Let the previous native account dialog finish dismissing before opening another Modal.
-    }, requested ? 350 : 450);
-    return () => clearTimeout(timer);
-  }, [enabled, foreground, ready, anotherModal, requested, index]);
-  const steps = useMemo(() => guidanceSteps.filter(step => targets.has(step.id)), [targets]);
-  const current = index === null ? null : Math.min(index, steps.length - 1);
-  const visible = current !== null && current >= 0 && ready && enabled && foreground && !anotherModal;
-  const context = useMemo(() => ({ active: visible, scrollRef, onScroll, register, refresh, setReady, start, preferenceError, retryPreference }), [visible, onScroll, register, refresh, start, preferenceError, retryPreference]);
-  return <GuidanceContext.Provider value={context}>
-    {children}
-    {visible && <GuidanceOverlay step={steps[current]!} index={current} total={steps.length} revision={revision} target={targets.get(steps[current]!.id)!} scrollRef={scrollRef} scrollOffset={scrollOffset}
-      onSkip={() => finish('skipped')} onBack={() => setIndex(Math.max(0, current - 1))} onNext={() => { if (current === steps.length - 1) finish('complete'); else setIndex(current + 1); }} />}
-  </GuidanceContext.Provider>;
+export function PalaceGuidanceProvider(props: PropsWithChildren<{ enabled?: boolean }>) {
+  return <TourGuideProvider><GuidanceCoordinator {...props} /></TourGuideProvider>;
+}
+function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ enabled?: boolean }>) {
+  const {isActive,isPaused,startTour,skipTour,pauseTour,resumeTour}=useTourGuide();
+  const {onScroll:reportScroll,onMomentumScrollEnd}=useTourScroll(); const foreground=useAppActive(); const anotherModal=usePalaceModalOpen(true);
+  const reduced=useReducedMotion(); const {width,height}=useWindowDimensions(); const insets=useSafeAreaInsets();
+  const [ready,setReady]=useState(false),[requested,setRequested]=useState(false),[preferenceError,setPreferenceError]=useState(false);
+  const [targets,setTargets]=useState(()=>new Map<GuidanceTargetId,RefObject<View|null>>());
+  const scrollRef=useRef<ScrollView>(null),offset=useRef(0),returnScroll=useRef(0),mounted=useRef(true),canRestore=useRef(false);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  useEffect(()=>{canRestore.current=enabled&&foreground;},[enabled,foreground]);
+  const register=useCallback((id:GuidanceTargetId,ref:RefObject<View|null>)=>{setTargets(old=>new Map(old).set(id,ref));return()=>setTargets(old=>{if(old.get(id)!==ref)return old;const next=new Map(old);next.delete(id);return next;});},[]);
+  const onScroll=useCallback((event:NativeSyntheticEvent<NativeScrollEvent>)=>{offset.current=event.nativeEvent.contentOffset.y;reportScroll(event);},[reportScroll]);
+  const start=useCallback(()=>{if(enabled)setRequested(true);},[enabled]);
+  const retryPreference=useCallback(()=>setPreferenceError(!preference.retry()),[]);
+  const finish=useCallback((completed:boolean)=>{const saved=preference.mark(completed?'complete':'skipped');if(mounted.current){setPreferenceError(!saved);setRequested(false);}if(canRestore.current)scrollRef.current?.scrollTo({y:returnScroll.current,animated:false});},[]);
+  useEffect(()=>{if(!isActive)return;if(!enabled)skipTour();else if(!foreground||anotherModal){if(!isPaused)pauseTour();}else if(isPaused)resumeTour();},[enabled,foreground,anotherModal,isActive,isPaused,skipTour,pauseTour,resumeTour]);
+  useEffect(()=>{if(enabled)return;const timer=setTimeout(()=>setRequested(false),0);return()=>clearTimeout(timer);},[enabled]);
+  useEffect(()=>{
+    if(!enabled||!foreground||!ready||anotherModal||isActive)return;
+    const timer=setTimeout(()=>{
+      if(!requested&&!preference.claimAutomatic())return;
+      if(requested)preference.mark('seen');
+      setPreferenceError(preference.needsRetry);setRequested(false);returnScroll.current=offset.current;
+      const steps:TourStep[]=guidanceSteps.filter(step=>targets.has(step.id)).map(step=>({id:step.id,targetRef:targets.get(step.id),title:step.title,description:step.text,tooltipPosition:'auto',spotlightPadding:5,spotlightBorderRadius:step.id==='bell'?24:8,scrollToTarget:{scrollRef,animated:!reduced,getCurrentScrollOffset:()=>offset.current}}));
+      startTour(steps,{
+        tourId:'palace-guidance-v1',scrollRef,getCurrentScrollOffset:()=>offset.current,insets,
+        tooltipWidth:280,autoPositionTooltip:true,followTarget:false,
+        overlayMode:'modal',motion:reduced?'none':'fade',animationDuration:reduced?0:180,
+        nextButtonText:'Next',prevButtonText:'Back',skipButtonText:'Skip',doneButtonText:'Finish',
+        components:{NextButton,PrevButton,SkipButton,StepCounter},onTourEnd:finish,
+        tooltipStyles:{backgroundColor:'#F8F4EA',borderRadius:12,titleColor:'#403C32',descriptionColor:'#726B5D',titleStyle:{fontFamily:serif,fontSize:21,fontWeight:'400',lineHeight:27},descriptionStyle:{fontSize:12,lineHeight:20},containerStyle:{borderWidth:1,borderColor:'#B99B61'},primaryButtonColor:'#465448',skipButtonColor:'#877044'},
+        spotlightStyles:{overlayColor:'#1A2320',overlayOpacity:.72,enablePulse:false,enableBlur:false,enableGradient:false},
+        accessibilityLabelPrefix:'Palace guidance',
+      });
+    },requested?350:450);
+    return()=>clearTimeout(timer);
+  },[enabled,foreground,ready,anotherModal,isActive,requested,targets,startTour,finish,reduced,insets]);
+  const visible=isActive&&!isPaused&&enabled&&foreground&&!anotherModal;
+  const context=useMemo(()=>({active:visible,scrollRef,onScroll,onMomentumScrollEnd,register,setReady,start,preferenceError,retryPreference}),[visible,onScroll,onMomentumScrollEnd,register,start,preferenceError,retryPreference]);
+  return <GuidanceContext.Provider value={context}>{children}<TourGuideOverlay key={`${width}:${height}`} />{visible&&<TourModalLease />}</GuidanceContext.Provider>;
 }

@@ -44,6 +44,7 @@ export class RecorderController {
   }
   background() {
     if (this.snapshot.phase === 'permission') {
+      if (this.driver.permissionPromptActive?.(this.abort?.signal)) return;
       this.generation++; this.abort?.abort();
       this.publish({ phase: 'idle', elapsedMs: 0, level: 0, error: null });
       return;

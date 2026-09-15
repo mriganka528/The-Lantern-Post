@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags, ApiUnauthorizedResponse } from '@
 import type { AuthIdentity } from '../auth/auth.identity';
 import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { CurrentIdentity } from '../auth/current-identity.decorator';
-import { FriendIdDto, FriendListDto, FriendSearchDto, RespondFriendDto, SendFriendDto } from './friends.dto';
+import { FriendIdDto, FriendListDto, FriendSearchDto, RemoveFriendDto, RespondFriendDto, SendFriendDto } from './friends.dto';
 import { FriendsService } from './friends.service';
 import { RequestLimit } from '../safety/request-limits';
 
@@ -25,4 +25,7 @@ export class FriendsController {
   @Post('requests/:id/respond') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Accept or decline an invitation addressed to you' })
   @RequestLimit('friend-response', 30)
   respond(@CurrentIdentity() identity: AuthIdentity, @Param() params: FriendIdDto, @Body() input: RespondFriendDto) { return this.friends.respond(identity.subject, params.id, input.action); }
+  @Post(':id/remove') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'End your current friendship without blocking or deleting letters' })
+  @RequestLimit('friend-remove', 30)
+  remove(@CurrentIdentity() identity: AuthIdentity, @Param() params: FriendIdDto, @Body() _input: RemoveFriendDto) { return this.friends.remove(identity.subject, params.id); }
 }

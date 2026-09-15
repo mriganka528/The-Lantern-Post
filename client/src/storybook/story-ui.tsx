@@ -9,11 +9,11 @@ import { useReducedMotion } from './use-reduced-motion';
 import { NavigationActions, navIcon, RoyalNavButton, RoyalPageHeader, WorkspaceNavigation } from './royal-navigation';
 import { useBlockingPalaceModal } from '../realtime/palace-live-state';
 
-export function StoryShell({ children, actions, chapter = 'A WORLD FOR YOUR WORDS', scrollRef, beforeBellOpen, onScroll, scrollEnabled = true }: PropsWithChildren<{ actions?: ReactNode; chapter?: string; scrollRef?: Ref<ScrollView>; beforeBellOpen?: () => boolean; onScroll?: ScrollViewProps['onScroll']; scrollEnabled?: boolean }>) {
+export function StoryShell({ children, actions, chapter = 'A WORLD FOR YOUR WORDS', scrollRef, beforeBellOpen, onScroll, onMomentumScrollEnd, scrollEnabled = true }: PropsWithChildren<{ actions?: ReactNode; chapter?: string; scrollRef?: Ref<ScrollView>; beforeBellOpen?: () => boolean; onScroll?: ScrollViewProps['onScroll']; onMomentumScrollEnd?: ScrollViewProps['onMomentumScrollEnd']; scrollEnabled?: boolean }>) {
   const { width } = useWindowDimensions();
   const inWorkspace = useContext(WorkspaceNavigation);
   return <SafeAreaView style={s.screen} edges={inWorkspace ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}>
-    <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" onScroll={onScroll} scrollEventThrottle={onScroll ? 32 : undefined} scrollEnabled={scrollEnabled}>
+    <ScrollView ref={scrollRef} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" nestedScrollEnabled onScroll={onScroll} onMomentumScrollEnd={onMomentumScrollEnd} scrollEventThrottle={onScroll ? 32 : undefined} scrollEnabled={scrollEnabled}>
       <View style={[s.page, width < 600 && s.smallPage]}>
         <RoyalPageHeader chapter={chapter} actions={actions} beforeBellOpen={beforeBellOpen} />
         {children}
@@ -58,7 +58,7 @@ export function StoryDialog({ title, children, onClose }: PropsWithChildren<{ ti
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close dialog" />
       <View style={[s.dialog, width < 600 && { padding: 16, gap: 14, maxHeight: '94%' }]} accessibilityViewIsModal>
         <View style={s.dialogHeader}><Text accessibilityRole="header" style={s.dialogTitle}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={onClose} style={s.close}><StoryIcon kind="close" /></Pressable></View>
-        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 20 }} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+        <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 20 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>{children}</ScrollView>
       </View>
     </View>
   </Modal>;

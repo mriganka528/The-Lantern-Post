@@ -15,8 +15,27 @@ test('bell seen state survives reload and concurrent window updates without mixi
 test('storage failures leave notifications unseen and can be retried', () => {
   let raw: string | null = null; let fail = true;
   const store = new BellSeenStore('alice', { read: () => raw, write: (_key, value) => { if (fail) throw Error('Full disk'); raw = value; } });
-  store.markSeen(['arrival']); assert.deepEqual(store.getSnapshot(), { seen: [], error: true });
-  fail = false; store.markSeen(['arrival']); assert.deepEqual(store.getSnapshot(), { seen: ['arrival'], error: false });
+  store.markSeen(['arrival']); assert.deepEqual(store.getSnapshot(), { seen: [], dismissed: [], error: true });
+  fail = false; store.markSeen(['arrival']); assert.deepEqual(store.getSnapshot(), { seen: ['arrival'], dismissed: [], error: false });
+});
+
+test('dismissed notices survive old-state migration, concurrent reads and reload without touching other accounts', () => {
+  const rows = new Map([[bellKey('alice'),JSON.stringify({version:1,ownerId:'alice',seen:['old']})]]);
+  const storage={read:(key:string)=>rows.get(key)??null,write:(key:string,value:string)=>{rows.set(key,value);}};
+  const first=new BellSeenStore('alice',storage),second=new BellSeenStore('alice',storage);
+  assert.equal(first.dismiss('letter'),true); second.markSeen(['message']);
+  const state=new BellSeenStore('alice',storage).getSnapshot();
+  assert.deepEqual(state.seen,['old','letter','message']);assert.deepEqual(state.dismissed,['letter']);
+  assert.deepEqual(new BellSeenStore('bob',storage).getSnapshot().dismissed,[]);
+  assert.equal(JSON.parse(rows.get(bellKey('alice'))!).version,2);
+});
+
+test('failed dismissal keeps a notice visible and swipe detection leaves vertical scrolling alone', async () => {
+  const {isNoticeSwipe,shouldDismissNotice}=await import('../src/notifications/notice-swipe');
+  const store=new BellSeenStore('a',{read:()=>null,write:()=>{throw Error('full disk');}});
+  assert.equal(store.dismiss('notice'),false);assert.deepEqual(store.getSnapshot().dismissed,[]);
+  assert.equal(isNoticeSwipe(20,80),false);assert.equal(shouldDismissNotice(35,1,.1,320),false);
+  assert.equal(shouldDismissNotice(110,10,.1,320),true);assert.equal(shouldDismissNotice(-110,10,-.1,320),true);
 });
 test('account closure fences bell writes and long notification history stays bounded', () => {
   const saved = new Map<string, string>();

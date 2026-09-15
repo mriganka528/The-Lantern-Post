@@ -41,6 +41,7 @@ await writeFile(entry,`
 ${sessionReview ? "import {useSessionToken} from '../client/src/auth/use-session-token';" : ''}
 import React,{useEffect,useMemo,useState} from 'react';import {AppRegistry} from 'react-native';import {SafeAreaProvider} from 'react-native-safe-area-context';import {SessionDataProvider} from '../client/src/api/session-data-provider';
 import {PalaceGuidanceProvider} from '../client/src/guidance/guidance-provider';
+import {useTourGuide} from '@wrack/react-native-tour-guide';
 import {WritingDesk} from '../client/src/letters/writing-desk';import {CharacterGallery} from '../client/src/storybook/character-gallery';import {PalaceHome} from '../client/src/storybook/palace-home';import {InfinityWorld} from '../client/src/infinity/infinity-world';
 import {createBurnTransport} from '../client/src/letters/burn-api';import {createWorldDeliveryTransport,createInfinityTransport} from '../client/src/infinity/infinity-api';import {createSafetyTransport} from '../client/src/safety/safety-api';import {apiRequest} from '../client/src/api/client';
 import {DiagnosticsProvider} from '../client/src/diagnostics/diagnostics-provider';import {DiagnosticsSettings} from '../client/src/diagnostics/diagnostics-settings';import {ApplicationBoundary} from '../client/src/diagnostics/application-boundary';import {StoryDialog,TextAction} from '../client/src/storybook/story-ui';import {PolicyLinks} from '../client/src/legal/policy-links';
@@ -49,7 +50,8 @@ import {PalaceBellProvider} from '../client/src/notifications/palace-bell-provid
 import {FriendsHall} from '../client/src/friends/friends-hall';import {ChatRoom} from '../client/src/chat/chat-room';import {createFriendsTransport} from '../client/src/friends/friends-api';import {createChatTransport} from '../client/src/chat/chat-api';import {createDeliveryTransport} from '../client/src/letters/friend-letter-api';
 const characters=${JSON.stringify(characters)};const presets=${JSON.stringify(presets)};window.__phase10={encryptArchive,decryptArchive,eraseLocalAccount,erasePreviouslyClosedAccounts,draftStorage};
 const liveSocket=()=>{if(window.__sessionMetrics)window.__sessionMetrics.sockets++;return new WebSocket(${JSON.stringify(backend.url.replace("http:","ws:")+"/events/socket")});};
-function GuidanceFixture({children,enabled}){return ${guidanceReview}?<PalaceGuidanceProvider enabled={enabled}>{children}</PalaceGuidanceProvider>:children;}
+function TourProbe(){const t=useTourGuide();useEffect(()=>{window.__phase10.tour={active:t.isActive&&!t.isPaused,id:t.activeSteps[t.currentStep]?.id,title:t.activeSteps[t.currentStep]?.title,layout:t.targetLayout};});return null;}
+function GuidanceFixture({children,enabled}){return ${guidanceReview}?<PalaceGuidanceProvider enabled={enabled}><TourProbe/>{children}</PalaceGuidanceProvider>:children;}
 function Fault(){throw new Error('SYNTHETIC_PRIVATE_RENDER_TEXT');}
 function Account({owner}){const [screen,setScreen]=useState(new URLSearchParams(location.search).get('screen')||'home');const [peer,setPeer]=useState(owner==='bob'?'owner-alice':'owner-bob');const [character,setCharacter]=useState(characters.find(c=>c.key==='cat-astral'));const [account,setAccount]=useState(false);const [busy,setBusy]=useState(false);const [fault,setFault]=useState(false);const [transportRevision,setTransportRevision]=useState(0);const token=${sessionReview?'useSessionToken()':'useMemo(()=>async()=>owner,[owner])'};const ownerId='owner-'+owner;
  const friends=useMemo(()=>createFriendsTransport(token),[token]);const chat=useMemo(()=>createChatTransport(token,()=>new WebSocket(${JSON.stringify(backend.url.replace("http:","ws:")+"/chat/socket")})),[token]);const privateDelivery=useMemo(()=>createDeliveryTransport(token,ownerId),[token,ownerId]);
@@ -73,7 +75,7 @@ try {
  async function home(){await page.getByText('Welcome home, alice.',{exact:true}).waitFor();if(!await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches))await page.getByRole('button',{name:'Skip to my palace',exact:true}).click();}
  const draft=()=>page.evaluate(()=>{const id=localStorage.getItem('lantern-letter-choice-v1-owner-alice');return JSON.parse(localStorage.getItem(!id||id==='original'?'lantern-draft-v1-owner-alice':'lantern-letter-v1-owner-alice--'+id));});
  if (guidanceReview) {
-   const {checkGuidance}=await import('./check-guidance-ui.mjs');await checkGuidance({page,output,errors,requests});
+   const {checkGuidance}=await import('./check-guidance-ui.mjs');await checkGuidance({page,output,errors,requests,backend});
  } else if (fastChatReview) {
    const {checkFastChat}=await import('./check-fast-chat-ui.mjs');await checkFastChat({page,backend,output,errors,requests});
  } else if (bellReview) {

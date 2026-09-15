@@ -6,9 +6,7 @@
     "scheme": "lantern-post",
     "icon": "./assets/app-icon/icon.png",
     "splash": {
-      "image": "./assets/storybook/app-foreground.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F8F2E2"
+      "backgroundColor": "#F8F4EA"
     },
     "android": {
       "package": "com.lanternpost.app",
