@@ -1,6 +1,6 @@
 /** Shared APK download settings for the showcase and installation guide. */
 export const download = {
-  url: "https://github.com/mriganka528/The-Lantern-Post/releases/download/v0.1.0/lantern-post-development.apk",
+  url: "https://github.com/mriganka528/The-Lantern-Post/releases/download/v0.2.0/lantern-post-development.apk",
   isTemporary: false,
 };
 

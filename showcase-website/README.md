@@ -47,12 +47,12 @@ Edit **`src/config/site.ts`**:
 
 ```ts
 export const download = {
-  url: "https://github.com/mriganka528/The-Lantern-Post/releases/download/v0.1.0/lantern-post-development.apk",
+  url: "https://github.com/mriganka528/The-Lantern-Post/releases/download/v0.2.0/lantern-post-development.apk",
   isTemporary: false,
 };
 ```
 
-The current URL is the user-supplied **Lantern Post v0.1.0 — First Android Release** asset. `isTemporary` is false, so the old placeholder notices are hidden. Every APK download button uses this same setting, including the landing page and installation guide. The asset filename is used exactly as provided; this link update does not inspect or certify the APK's build mode. Redeploy after editing the link.
+The current URL is the user-supplied **Lantern Post v0.2.0** asset. `isTemporary` is false, so the old placeholder notices are hidden. Every APK download button uses this same setting, including the landing page and installation guide. The asset filename is used exactly as provided; this link update does not inspect or certify the APK's build mode. Redeploy after editing the link.
 
 ## Included pages and interactions
 
