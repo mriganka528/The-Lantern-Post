@@ -55,10 +55,11 @@ export function friendsFixture() {
       if (expected instanceof Date || expected === null || typeof expected !== 'object') return scalar(actual) === scalar(expected);
       const operation = expected as Row;
       if ('none' in operation || 'some' in operation) { const rows = actual as Row[]; return 'none' in operation ? rows.every(item => !matches(item, operation.none as Row)) : rows.some(item => matches(item, operation.some as Row)); }
-      if (['not', 'in', 'startsWith', 'gt', 'gte', 'lt', 'lte'].some(k => k in operation)) return Object.entries(operation).every(([op, v]) => {
+      if (['not', 'in', 'startsWith', 'contains', 'gt', 'gte', 'lt', 'lte'].some(k => k in operation)) return Object.entries(operation).every(([op, v]) => {
         if (op === 'not') return scalar(actual) !== scalar(v);
         if (op === 'in') return (v as unknown[]).includes(actual);
         if (op === 'startsWith') return String(actual).startsWith(String(v).replace(/\\([\\%_])/g, '$1'));
+        if (op === 'contains') return String(actual).includes(String(v).replace(/\\([\\%_])/g, '$1'));
         if (actual === null || actual === undefined) return false;
         if (op === 'gt') return scalar(actual)! > scalar(v)!;
         if (op === 'gte') return scalar(actual)! >= scalar(v)!;

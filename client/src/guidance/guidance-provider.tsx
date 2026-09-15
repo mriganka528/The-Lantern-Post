@@ -42,15 +42,20 @@ function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ e
   useEffect(()=>{if(!isActive)return;if(!enabled)skipTour();else if(!foreground||anotherModal){if(!isPaused)pauseTour();}else if(isPaused)resumeTour();},[enabled,foreground,anotherModal,isActive,isPaused,skipTour,pauseTour,resumeTour]);
   useEffect(()=>{if(enabled)return;const timer=setTimeout(()=>setRequested(false),0);return()=>clearTimeout(timer);},[enabled]);
   useEffect(()=>{
-    if(!enabled||!foreground||!ready||anotherModal||isActive)return;
-    const timer=setTimeout(()=>{
+    if(!enabled||!foreground||!ready||anotherModal||isActive||!targets.get('companions')?.current)return;
+    // The palace signals readiness after its entrance closes. Its target refs
+    // are already mounted; start on the next frame instead of a restartable
+    // 350/450-ms timer that can keep slipping as the home finishes loading.
+    const frame=requestAnimationFrame(()=>{
       if(!requested&&!preference.claimAutomatic())return;
       if(requested)preference.mark('seen');
       setPreferenceError(preference.needsRetry);setRequested(false);returnScroll.current=offset.current;
-      const steps:TourStep[]=guidanceSteps.filter(step=>targets.has(step.id)).map(step=>({id:step.id,targetRef:targets.get(step.id),title:step.title,description:step.text,tooltipPosition:'auto',spotlightPadding:5,spotlightBorderRadius:step.id==='bell'?24:8,scrollToTarget:{scrollRef,animated:!reduced,getCurrentScrollOffset:()=>offset.current}}));
+      // The SDK treats delayBefore:0 as its 100-ms default. A minimal explicit
+      // delay uses its own measurement pipeline without an extra startup pause.
+      const steps:TourStep[]=guidanceSteps.filter(step=>targets.has(step.id)).map((step,index)=>({id:step.id,targetRef:targets.get(step.id),title:step.title,description:step.text,tooltipPosition:'auto',spotlightPadding:5,spotlightBorderRadius:step.id==='bell'?24:8,...(index===0?{delayBefore:1,motion:'none' as const}:{}),scrollToTarget:{scrollRef,animated:index>0&&!reduced,getCurrentScrollOffset:()=>offset.current}}));
       startTour(steps,{
         tourId:'palace-guidance-v1',scrollRef,getCurrentScrollOffset:()=>offset.current,insets,
-        tooltipWidth:280,autoPositionTooltip:true,followTarget:false,
+        tooltipWidth:280,autoPositionTooltip:true,followTarget:false,waitForInteractions:false,
         overlayMode:'modal',motion:reduced?'none':'fade',animationDuration:reduced?0:180,
         nextButtonText:'Next',prevButtonText:'Back',skipButtonText:'Skip',doneButtonText:'Finish',
         components:{NextButton,PrevButton,SkipButton,StepCounter},onTourEnd:finish,
@@ -58,8 +63,8 @@ function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ e
         spotlightStyles:{overlayColor:'#1A2320',overlayOpacity:.72,enablePulse:false,enableBlur:false,enableGradient:false},
         accessibilityLabelPrefix:'Palace guidance',
       });
-    },requested?350:450);
-    return()=>clearTimeout(timer);
+    });
+    return()=>cancelAnimationFrame(frame);
   },[enabled,foreground,ready,anotherModal,isActive,requested,targets,startTour,finish,reduced,insets]);
   const visible=isActive&&!isPaused&&enabled&&foreground&&!anotherModal;
   const context=useMemo(()=>({active:visible,scrollRef,onScroll,onMomentumScrollEnd,register,setReady,start,preferenceError,retryPreference}),[visible,onScroll,onMomentumScrollEnd,register,start,preferenceError,retryPreference]);

@@ -13,10 +13,10 @@ export function useFriendsSummary(api: FriendsTransport, ownerId: string, enable
   const live=usePalaceConnection(ownerId);
   return useQuery({ queryKey: [...friendsKey(ownerId), 'summary'], queryFn: ({ signal }) => api.summary(signal), enabled, staleTime: 10_000, refetchInterval: enabled && !live ? 30_000 : false });
 }
-export function useFriendsList(api: FriendsTransport, ownerId: string, view: FriendsView, enabled = true) {
+export function useFriendsList(api: FriendsTransport, ownerId: string, view: FriendsView, enabled = true, username = '') {
   const live=usePalaceConnection(ownerId);
-  return useInfiniteQuery({ queryKey: [...friendsKey(ownerId), 'list', view], initialPageParam: null as string | null,
-    queryFn: ({ pageParam, signal }) => api.list(view, pageParam, signal), getNextPageParam: page => page.nextCursor,
+  return useInfiniteQuery({ queryKey: [...friendsKey(ownerId), 'list', view, username], initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => api.list(view, pageParam, signal, username), getNextPageParam: page => page.nextCursor,
     enabled, staleTime: 10_000, refetchInterval: enabled && !live ? 30_000 : false });
 }
 export function useFriendSearch(api: FriendsTransport, ownerId: string, username: string) {

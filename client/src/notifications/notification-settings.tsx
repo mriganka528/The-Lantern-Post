@@ -10,6 +10,7 @@ import { pushDriver } from './push-driver';
 import { notifyPushChange, readPush, removePush, writePush } from './push-storage';
 import { PalaceAlertSettings } from '../realtime/palace-alert-settings';
 import { ensureWelcome, welcomeAvailable } from './welcome-driver';
+import { DailyReminderSettings } from './daily-reminder-settings';
 
 export async function disableDevicePush(ownerId: string, getToken: GetSessionToken) {
   if (!ownerId || !pushDriver.available()) return;
@@ -52,6 +53,7 @@ export function NotificationSettings({ ownerId, getToken, compact = false }: { o
     <Text style={s.body}>{available ? 'Phone notifications for messages, letters and invitations, even when you leave the app. Enable them when you choose.' : Platform.OS==='web'?'Arrival notices work while this browser tab is open. Phone push can be enabled later in an installed Android app.':'Phone push needs an installed development or release build with notification setup. In-app arrival notices work now.'}</Text>
     {available && <StoryButton label={busy ? 'Tending the bells…' : enabled ? 'Turn off device alerts' : 'Enable device alerts'} onPress={() => { void toggle(); }} disabled={busy} secondary={enabled} />}
     {error && <Text role="alert" style={styles.error}>{error}</Text>}
+    <DailyReminderSettings ownerId={ownerId} />
   </View>;
 }
 const styles = StyleSheet.create({ panel: { marginTop: 30, borderTopWidth: 1, borderColor: '#D3C19C', paddingTop: 21, gap: 13, alignItems: 'flex-start' }, heading: { flexDirection: 'row', alignItems: 'center', gap: 10 }, title: { fontFamily: serif, color: ink, fontSize: 22 }, error: { color: '#874F3E', fontSize: 12, lineHeight: 21 } });

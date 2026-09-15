@@ -18,7 +18,7 @@ export class FriendsController {
   @Get('summary') @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Your friend and invitation counts' })
   summary(@CurrentIdentity() identity: AuthIdentity) { return this.friends.summary(identity.subject); }
   @Get() @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Your friends, received invitations, or sent invitations; 24 items per page' })
-  list(@CurrentIdentity() identity: AuthIdentity, @Query() query: FriendListDto) { return this.friends.list(identity.subject, query.view, query.cursor); }
+  list(@CurrentIdentity() identity: AuthIdentity, @Query() query: FriendListDto) { return this.friends.list(identity.subject, query.view, query.cursor, query.username); }
   @Post('requests') @HttpCode(200) @Header('Cache-Control', 'no-store') @ApiOperation({ summary: 'Send an invitation by username; retries and crossed requests reuse the existing invitation' })
   @RequestLimit('friend-invite', 15)
   send(@CurrentIdentity() identity: AuthIdentity, @Body() input: SendFriendDto) { return this.friends.send(identity.subject, input.username); }

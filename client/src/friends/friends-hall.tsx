@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Image, Keyboard, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import type { FriendConnection, FriendPerson, FriendSearchResult, FriendsView } from '@lantern-post/shared-types';
@@ -20,6 +20,15 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<FriendsView>('friends');
   const [name, setName] = useState(''); const [query, setQuery] = useState('');
+  const [friendName, setFriendName] = useState('');
+  const [friendQuery, setFriendQuery] = useState('');
+  const normalizedFilter = normalizeFriendSearch(friendName);
+  const validFilter = /^[a-z0-9_]{0,24}$/.test(normalizedFilter);
+  const filtering = tab === 'friends' && normalizedFilter !== friendQuery;
+  useEffect(() => {
+    const timer = setTimeout(() => setFriendQuery(normalizedFilter), 250);
+    return () => clearTimeout(timer);
+  }, [normalizedFilter]);
   const [notice, setNotice] = useState<string | null>(null);
   const [visit, setVisit] = useState<{ person: FriendPerson; newlyAccepted: boolean } | null>(null);
   const [decline, setDecline] = useState<FriendConnection | null>(null);
@@ -27,13 +36,14 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
   const [removing, setRemoving] = useState<FriendConnection | null>(null);
   const removal = useUnfriend(api, ownerId);
   const summary = useFriendsSummary(api, ownerId);
-  const list = useFriendsList(api, ownerId, tab);
+  const list = useFriendsList(api, ownerId, tab, tab !== 'friends' || (validFilter && !filtering), tab === 'friends' ? friendQuery : '');
   const search = useFriendSearch(api, ownerId, query);
   const action = useFriendAction(api, ownerId);
   const small = width < 650;
   const resultsVisible = query.length > 0 && normalizeFriendSearch(name) === query;
   const entries = list.data?.pages.flatMap(page => page.items) ?? [];
-  const refresh = () => { void summary.refetch(); void list.refetch(); if (query) void search.refetch(); };
+  const refresh = () => { void summary.refetch(); if (tab !== 'friends' || (validFilter && !filtering)) void list.refetch(); if (query) void search.refetch(); };
+  const clearFriendSearch = () => { setFriendName(''); setFriendQuery(''); };
   async function act(input: { kind: 'send'; username: string } | { kind: 'accept' | 'decline'; id: string }) {
     if (action.isPending) return;
     Keyboard.dismiss();
@@ -78,18 +88,23 @@ export function FriendsHall({ ownerId, username, api, onBack, notifications, onW
       {action.isError && <Problem message={friendErrorMessage(action.error)} onRetry={() => { action.reset(); refresh(); }} label="Refresh the guestbook" />}
       <View style={styles.sectionTop}><Text accessibilityRole="header" style={styles.panelTitle}>Your circle of little lights</Text><TextAction label={list.isFetching ? 'Refreshing…' : 'Refresh'} onPress={refresh} disabled={list.isFetching} /></View>
       <View accessibilityRole="tablist" style={styles.tabs}>
-        {([{ key: 'friends', title: 'Friendship gates' }, { key: 'incoming', title: 'At my gate' }, { key: 'outgoing', title: 'Sent invitations' }] as const).map(({ key, title }) => <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} aria-selected={tab === key} accessibilityLabel={title} onPress={() => { setTab(key); setDecline(null); if (!action.isPending) action.reset(); }} style={[styles.tab, tab === key && styles.selectedTab]}><Text style={[styles.tabText, tab === key && { color: ink }]}>{title}{summary.data ? `  ${summary.data[key]}` : ''}</Text></Pressable>)}
+        {([{ key: 'friends', title: 'Friendship gates', short: 'Friends' }, { key: 'incoming', title: 'At my gate', short: 'Received' }, { key: 'outgoing', title: 'Sent invitations', short: 'Sent' }] as const).map(({ key, title, short }) => <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} aria-selected={tab === key} accessibilityLabel={title} onPress={() => { setTab(key); setDecline(null); if (!action.isPending) action.reset(); }} style={[styles.tab, tab === key && styles.selectedTab]}><Text style={[styles.tabText, tab === key && { color: ink }]}>{small ? short : title}</Text>{summary.data && <Text style={styles.tabCount}>{summary.data[key]}</Text>}</Pressable>)}
       </View>
-      {list.isPending ? <Waiting label="Opening the palace guestbook…" /> : list.isError ? <Problem message={friendErrorMessage(list.error)} onRetry={() => { void list.refetch(); }} /> : !entries.length ? <View style={styles.empty}>
+      {tab === 'friends' && <View style={styles.circleSearch}>
+        <Text style={styles.searchLabel}>Search your friends</Text>
+        <View style={styles.filterInputRow}><Text style={styles.at}>@</Text><TextInput accessibilityLabel="Search your friends" value={friendName} onChangeText={setFriendName} maxLength={25} autoCapitalize="none" autoCorrect={false} placeholder="Type a friend's username" placeholderTextColor="#938570" returnKeyType="search" onSubmitEditing={Keyboard.dismiss} style={styles.input} />{Boolean(friendName) && <Pressable accessibilityRole="button" accessibilityLabel="Clear friend search" onPress={clearFriendSearch} style={styles.clearSearch}><StoryIcon kind="close" size={16} /></Pressable>}</View>
+        <Text accessibilityLiveRegion="polite" style={styles.hint}>{!validFilter ? 'Use letters, numbers or underscores from their username.' : filtering || list.isPending ? 'Looking through your circle…' : friendQuery ? `${entries.length}${list.hasNextPage ? '+' : ''} matching friend${entries.length === 1 ? '' : 's'}` : 'Your friends, a little closer. Tap a gate to visit.'}</Text>
+      </View>}
+      {tab === 'friends' && !validFilter ? null : filtering || list.isPending ? <Waiting label="Opening the palace guestbook…" /> : list.isError ? <Problem message={friendErrorMessage(list.error)} onRetry={() => { void list.refetch(); }} /> : !entries.length && tab === 'friends' && friendQuery ? <View style={styles.empty}><StoryIcon kind="gate" size={26} /><Text style={styles.emptyTitle}>No friend matches that name.</Text><Text style={styles.emptyBody}>Try another part of their username, or return to your full circle.</Text><TextAction label="Show all friends" onPress={clearFriendSearch} /></View> : !entries.length ? <View style={styles.empty}>
         <StoryIcon kind={tab === 'friends' ? 'gate' : 'letter'} size={39} /><Text style={styles.emptyTitle}>{tab === 'friends' ? 'Every friendship begins with a little hello.' : tab === 'incoming' ? 'The gate is quiet, for now.' : 'A fresh page in the guestbook.'}</Text>
         <Text style={styles.emptyBody}>{tab === 'friends' ? 'Find a friend above and leave an invitation. When it is accepted, their gate will find a place here.' : tab === 'incoming' ? `Share @${username} with someone you know. Their invitation will be waiting here.` : 'Your sent invitations will rest here while you wait for a reply.'}</Text>
       </View> : <View style={tab === 'friends' ? styles.gates : styles.requests}>
-        {entries.map(entry => tab === 'friends' ? <View key={entry.id} style={{gap:6,maxWidth:'100%'}}><FriendGate person={entry.person} onPress={() => setVisit({ person: entry.person, newlyAccepted: false })} />{api.unfriend && <TextAction label={`Unfriend ${entry.person.username}`} onPress={()=>{removal.reset();setRemoving(entry);}} />}</View> : <View key={entry.id} style={styles.invitation}>
+        {entries.map(entry => tab === 'friends' ? <View key={entry.id} style={small ? styles.phoneGate : styles.desktopGate}><FriendGate person={entry.person} onPress={() => setVisit({ person: entry.person, newlyAccepted: false })} onChat={onChat ? () => onChat(entry.person) : undefined} onUnfriend={api.unfriend ? () => { removal.reset(); setRemoving(entry); } : undefined} /></View> : <View key={entry.id} style={styles.invitation}>
           <PersonHeading person={entry.person} /><Text style={styles.invitationCopy}>{tab === 'incoming' ? 'A sealed invitation to join your circle.' : 'Your invitation is waiting at their gate.'}</Text>{safety && <TextAction label={`Block ${entry.person.username}`} onPress={() => setBlocking(entry.person)} />}
           {tab === 'incoming' ? decline?.id === entry.id ? <View style={styles.reply}><Text style={s.body}>Let this invitation pass?</Text><TextAction label={`Keep invitation from ${entry.person.username}`} onPress={() => setDecline(null)} disabled={action.isPending} /><StoryButton label={`Decline ${entry.person.username}'s invitation`} secondary onPress={() => { void act({ kind: 'decline', id: entry.id }); }} disabled={action.isPending} /></View> : <View style={styles.reply}><StoryButton label={`Welcome ${entry.person.username}`} onPress={() => { void act({ kind: 'accept', id: entry.id }); }} disabled={action.isPending} /><TextAction label={`Decline invitation from ${entry.person.username}`} onPress={() => setDecline(entry)} disabled={action.isPending} /></View> : <Text style={styles.waitingReply}>AWAITING A REPLY</Text>}
         </View>)}
       </View>}
-      {list.hasNextPage && <View style={{ alignItems: 'center', marginTop: 18 }}><TextAction label={list.isFetchingNextPage ? 'Turning the page…' : 'Turn another page'} onPress={() => { void list.fetchNextPage(); }} disabled={list.isFetchingNextPage} /></View>}
+      {list.hasNextPage && !filtering && (tab !== 'friends' || validFilter) && <View style={{ alignItems: 'center', marginTop: 18 }}><TextAction label={list.isFetchingNextPage ? 'Turning the page…' : 'Turn another page'} onPress={() => { void list.fetchNextPage(); }} disabled={list.isFetchingNextPage} /></View>}
       {summary.isError && <Text style={styles.hint}>Counts are unavailable. Refresh to check for new invitations.</Text>}
       {notifications}
       {safety && <ClosedGates ownerId={ownerId} api={safety} />}
@@ -120,10 +135,13 @@ const styles = StyleSheet.create({
   at: { fontFamily: serif, fontSize: 21, color: '#A08A65', paddingRight: 9 }, input: { flex: 1, minWidth: 0, paddingVertical: 13, color: '#4D4030', fontSize: 15 },
   hint: { color: mutedInk, fontSize: 11, lineHeight: 19 }, searchResults: { marginTop: 22, gap: 12 }, sectionTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 30, marginBottom: 15 },
   searchCard: { padding: 18, backgroundColor: '#FCF7EB', borderColor: '#D8C7A6', borderWidth: 1, gap: 13, borderRadius: 4 },
-  tabs: { flexDirection: 'row', gap: 5, borderBottomWidth: 1, borderColor: '#C5B08A', flexWrap: 'wrap', paddingBottom: 8 }, tab: { minHeight: 44, paddingVertical: 12, paddingHorizontal: 13, borderRadius: 3 },
-  selectedTab: { backgroundColor: '#E8DCC1', borderColor: '#C3A773', borderWidth: 1 }, tabText: { color: mutedInk, fontFamily: serif, fontSize: 16 },
+  tabs: { flexDirection: 'row', gap: 5, borderBottomWidth: 1, borderColor: '#C5B08A', flexWrap: 'wrap', paddingBottom: 8 }, tab: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderColor: 'transparent' },
+  selectedTab: { backgroundColor: '#E8DCC1', borderColor: '#C3A773' }, tabText: { color: mutedInk, fontFamily: serif, fontSize: 15 }, tabCount: { color: '#65553B', fontSize: 11 },
+  circleSearch: { marginTop: 18, gap: 7 }, searchLabel: { color: '#5E513C', fontSize: 12 },
+  filterInputRow: { flexDirection: 'row', alignItems: 'center', minHeight: 46, paddingLeft: 12, paddingRight: 3, backgroundColor: '#FFFBF2', borderWidth: 1, borderColor: '#C6B18A', borderRadius: 5 },
+  clearSearch: { minHeight: 44, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
   empty: { paddingVertical: 36, paddingHorizontal: 22, alignItems: 'center', gap: 15, backgroundColor: '#F6EFDF', marginTop: 18, borderColor: '#D9C9AA', borderWidth: 1, borderRadius: 4 }, emptyTitle: { fontFamily: serif, color: ink, fontSize: 23, textAlign: 'center' }, emptyBody: { color: mutedInk, fontSize: 13, lineHeight: 23, maxWidth: 490, textAlign: 'center' },
-  gates: { flexDirection: 'row', flexWrap: 'wrap', gap: 15, marginTop: 22 }, requests: { marginTop: 20, gap: 16 }, invitation: { padding: 21, borderColor: '#C6AD7F', borderWidth: 1, backgroundColor: '#F2E7CF', borderRadius: 4, gap: 16 },
+  gates: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12, marginTop: 12 }, phoneGate: { width: '100%' }, desktopGate: { width: '48%' }, requests: { marginTop: 20, gap: 16 }, invitation: { padding: 21, borderColor: '#C6AD7F', borderWidth: 1, backgroundColor: '#F2E7CF', borderRadius: 4, gap: 16 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 13 }, username: { fontFamily: serif, fontSize: 23, color: ink, flexShrink: 1 }, palaceName: { color: mutedInk, fontSize: 11, lineHeight: 18 }, invitationCopy: { color: '#7C684B', fontFamily: serif, fontStyle: 'italic', fontSize: 17 },
   reply: { gap: 8, alignItems: 'flex-start' }, waitingReply: { color: '#7B6B50', fontSize: 9, letterSpacing: 1.1, lineHeight: 18 }, notice: { marginTop: 18, color: '#506343', backgroundColor: '#E8EDDC', padding: 15, lineHeight: 23, fontSize: 13 }, problem: { borderWidth: 1, borderColor: '#CCAB92', backgroundColor: '#F7E9DD', padding: 17, gap: 7, marginTop: 14 }, error: { color: '#864E39', fontSize: 13, lineHeight: 22 },
 });

@@ -4,7 +4,7 @@ import type { GetSessionToken } from '../api/client';
 
 export interface FriendsTransport {
   search(username: string, signal?: AbortSignal): Promise<FriendSearchResponse>;
-  list(view: FriendsView, cursor?: string | null, signal?: AbortSignal): Promise<FriendsPage>;
+  list(view: FriendsView, cursor?: string | null, signal?: AbortSignal, username?: string): Promise<FriendsPage>;
   summary(signal?: AbortSignal): Promise<FriendSummary>;
   send(username: string): Promise<FriendConnection>;
   respond(id: string, action: 'accept' | 'decline'): Promise<FriendConnection>;
@@ -15,7 +15,7 @@ export const validFriendSearch = (value: string) => /^[a-z0-9_]{3,24}$/.test(nor
 export function createFriendsTransport(getToken: GetSessionToken): FriendsTransport {
   return {
     search: (username, signal) => apiRequest(`/friends/search?username=${encodeURIComponent(normalizeFriendSearch(username))}`, getToken, { signal }),
-    list: (view, cursor, signal) => apiRequest(`/friends?view=${view}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, getToken, { signal }),
+    list: (view, cursor, signal, username) => apiRequest(`/friends?view=${view}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}${username ? `&username=${encodeURIComponent(normalizeFriendSearch(username))}` : ''}`, getToken, { signal }),
     summary: signal => apiRequest('/friends/summary', getToken, { signal }),
     send: username => apiRequest('/friends/requests', getToken, { method: 'POST', body: { username: normalizeFriendSearch(username) } }),
     respond: (id, action) => apiRequest(`/friends/requests/${encodeURIComponent(id)}/respond`, getToken, { method: 'POST', body: { action } }),

@@ -14,6 +14,7 @@ import { letterboxKey } from '../letters/use-letterbox';
 import { PalaceLiveSession } from '../realtime/palace-live-session';
 import type { PalaceDestination } from '../realtime/palace-live-contract';
 import { PalaceBellProvider } from './palace-bell-provider';
+import { useDailyReminderSession } from './daily-reminder-session';
 
 export function useNotificationSession(ownerId: string, getToken: GetSessionToken, onOpen: (destination:PalaceDestination) => void) {
   const [revision, setRevision] = useState(0);
@@ -43,6 +44,7 @@ export function NotificationSession({ children, enabled = true }: PropsWithChild
   const pathname=usePathname();const params=useGlobalSearchParams<{friend?:string}>();
   const open = useCallback((destination:PalaceDestination) => { void cache.invalidateQueries({ queryKey: destination.screen === 'inbox' ? letterboxKey(ownerId) : friendsKey(ownerId) }); if(destination.screen==='chat')router.push({pathname:'/chat',params:{friend:destination.peerId}});else router.push(destination.screen === 'inbox' ? '/inbox' : '/friends'); }, [cache, ownerId, router]);
   useNotificationSession(ownerId, getToken, open);
+  useDailyReminderSession(ownerId);
   const chatPeerId = pathname === '/chat' && typeof params.friend === 'string' ? params.friend : undefined;
   return <PalaceBellProvider ownerId={ownerId} getToken={getToken} onOpen={open} chatPeerId={chatPeerId}><PalaceLiveSession ownerId={ownerId} getToken={getToken} onOpen={open} chatPeerId={chatPeerId}/>{children}</PalaceBellProvider>;
 }

@@ -7,18 +7,23 @@ import { StoryButton, StoryDialog, TextAction, s } from '../storybook/story-ui';
 import { StoryIcon } from '../storybook/ornaments';
 import { ink, mutedInk, serif } from '../storybook/theme';
 import { useMotionPreference } from '../storybook/use-reduced-motion';
-import { RoyalNameplate } from '../storybook/royal-nameplate';
 
-export function FriendGate({ person, onPress, compact = false }: { person: FriendPerson; onPress: () => void; compact?: boolean }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Open ${person.username}'s friendship gate`} onPress={onPress} style={({ pressed }) => [styles.card, compact && styles.compact, pressed && { opacity: .8 }]}>
-    <View style={[styles.gate, compact && { width: 102, height: 121 }]}>
+export function FriendGate({ person, onPress, compact = false, onChat, onUnfriend }: { person: FriendPerson; onPress: () => void; compact?: boolean; onChat?: () => void; onUnfriend?: () => void }) {
+  return <View testID={`friend-card-${person.id}`} style={[styles.card, compact && styles.compact]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`Open ${person.username}'s friendship gate`} onPress={onPress} style={({ pressed }) => [styles.openGate, pressed && styles.pressed]}>
+    <View style={styles.gate}>
       <View style={styles.halo} /><View style={styles.arch}><View style={styles.leaf}><View style={styles.engraving} /></View><View style={styles.leaf}><View style={styles.engraving} /></View></View>
-      <View style={styles.key}><StoryIcon kind="key" size={20} /></View>
-      {person.character && <View style={styles.companion}><CharacterArt characterKey={person.character.key} size={compact ? 40 : 51} /></View>}
+      <View style={styles.key}><StoryIcon kind="key" size={11} /></View>
+      {person.character && <View style={styles.companion}><CharacterArt characterKey={person.character.key} size={27} /></View>}
     </View>
-    <RoyalNameplate username={person.username} compact />
-    {!compact && <Text style={styles.palace}>{person.character?.palace.name ?? 'A little palace in the clouds'}</Text>}
-  </Pressable>;
+    <View style={styles.identity}><Text style={styles.name} numberOfLines={2}>@{person.username}</Text><Text style={styles.palace} numberOfLines={2}>{person.character?.palace.name ?? 'A little palace in the clouds'}</Text></View>
+    <StoryIcon kind="arrow" size={17} color="#806334" />
+    </Pressable>
+    {(onChat || onUnfriend) && <View style={styles.actions}>
+      {onChat && <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${person.username}`} onPress={onChat} style={({ pressed }) => [styles.action, styles.chatAction, pressed && styles.pressed]}><StoryIcon kind="letter" size={16} color="#455B49" /><Text style={styles.chatLabel}>Chat</Text></Pressable>}
+      {onUnfriend && <Pressable accessibilityRole="button" accessibilityLabel={`Unfriend ${person.username}`} onPress={onUnfriend} style={({ pressed }) => [styles.action, styles.removeAction, pressed && styles.pressed]}><Text style={styles.removeLabel}>Unfriend</Text></Pressable>}
+    </View>}
+  </View>;
 }
 
 export function FriendGateVisit({ person, newlyAccepted = false, onClose, onWrite, onBlock, onChat }: { person: FriendPerson; newlyAccepted?: boolean; onClose: () => void; onWrite?: () => void; onBlock?: () => void; onChat?: () => void }) {
@@ -45,13 +50,21 @@ export function FriendGateVisit({ person, newlyAccepted = false, onClose, onWrit
   </StoryDialog>;
 }
 const styles = StyleSheet.create({
-  card: { minWidth: 148, flexGrow: 1, flexBasis: 170, maxWidth: 280, borderWidth: 1, borderColor: '#D4BF96', backgroundColor: '#F8F0DF', padding: 17, borderRadius: 5, gap: 10, alignItems: 'center' },
-  compact: { minWidth: 126, flexBasis: 134, maxWidth: 200, padding: 12 }, gate: { width: 124, height: 146, alignItems: 'center', justifyContent: 'flex-end' },
+  card: { width: '100%', borderWidth: 1, borderColor: '#D4BF96', backgroundColor: '#FCF7EB', borderRadius: 6, overflow: 'hidden' },
+  compact: { backgroundColor: '#F8F0DF' },
+  openGate: { minHeight: 76, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  identity: { flex: 1, minWidth: 0, gap: 4 },
+  gate: { width: 46, height: 55, flexShrink: 0, alignItems: 'center', justifyContent: 'flex-end', marginRight: 4 },
   halo: { position: 'absolute', width: '100%', height: '90%', top: 0, borderRadius: 70, backgroundColor: '#E8DEC5', borderWidth: 1, borderColor: '#CBB689' },
-  arch: { width: '82%', height: '91%', borderTopLeftRadius: 60, borderTopRightRadius: 60, overflow: 'hidden', borderWidth: 4, borderColor: '#BEA577', backgroundColor: '#625646', flexDirection: 'row' },
-  leaf: { width: '50%', backgroundColor: '#7C6B54', borderColor: '#AB9268', borderWidth: 1, padding: 5 }, engraving: { flex: 1, borderWidth: 1, borderColor: '#C2A678', borderTopLeftRadius: 40, borderTopRightRadius: 40 },
-  key: { position: 'absolute', top: '54%', padding: 5, backgroundColor: '#ECDDAD', borderRadius: 18, borderColor: '#AD915D', borderWidth: 1 },
-  companion: { position: 'absolute', right: -7, bottom: -3 }, name: { fontFamily: serif, color: ink, fontSize: 17, textAlign: 'center' }, palace: { color: mutedInk, fontSize: 11, lineHeight: 18, textAlign: 'center' },
+  arch: { width: '82%', height: '91%', borderTopLeftRadius: 60, borderTopRightRadius: 60, overflow: 'hidden', borderWidth: 2, borderColor: '#BEA577', backgroundColor: '#625646', flexDirection: 'row' },
+  leaf: { width: '50%', backgroundColor: '#7C6B54', borderColor: '#AB9268', borderWidth: 1, padding: 2 }, engraving: { flex: 1, borderWidth: 1, borderColor: '#C2A678', borderTopLeftRadius: 40, borderTopRightRadius: 40 },
+  key: { position: 'absolute', top: '48%', padding: 2, backgroundColor: '#ECDDAD', borderRadius: 18, borderColor: '#AD915D', borderWidth: 1 },
+  companion: { position: 'absolute', right: -5, bottom: -2 }, name: { fontFamily: serif, color: '#3E5347', fontSize: 17, lineHeight: 23 }, palace: { color: mutedInk, fontSize: 11, lineHeight: 16 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: 7, borderTopWidth: 1, borderColor: '#E4D8BF', backgroundColor: '#F6F0E2' },
+  action: { minHeight: 44, minWidth: 80, paddingHorizontal: 13, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderRadius: 4 },
+  chatAction: { backgroundColor: '#E6EBDD', borderColor: '#B6C1A9', marginRight: 'auto' }, chatLabel: { color: '#3F5747', fontSize: 13 },
+  removeAction: { backgroundColor: '#FCF7EB', borderColor: '#C6AD8B' }, removeLabel: { color: '#80513D', fontSize: 13 },
+  pressed: { backgroundColor: '#EDE1C8' },
   reveal: { height: 252, overflow: 'hidden', borderTopLeftRadius: 140, borderTopRightRadius: 140, borderWidth: 2, borderColor: '#B69B68', backgroundColor: '#EBE3D1' },
   scene: { position: 'absolute', width: '100%', height: '100%' }, visitor: { position: 'absolute', bottom: 0, alignSelf: 'center' }, door: { position: 'absolute', width: '50%', height: '100%', backfaceVisibility: 'hidden' },
   visitName: { fontFamily: serif, color: ink, fontSize: 25, textAlign: 'center' },

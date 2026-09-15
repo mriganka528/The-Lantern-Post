@@ -44,10 +44,16 @@ export class FriendsService {
       return [{ person: person(row), relationship: relationship(request, owner.id), requestId: request?.id ?? null }];
     }), hasMore: matches.length > 20 };
   }
-  async list(authProviderId: string, view: FriendsView, cursor?: string): Promise<FriendsPage> {
+  async list(authProviderId: string, view: FriendsView, cursor?: string, username?: string): Promise<FriendsPage> {
     const boundary = pageBoundary(cursor);
     const owner = await this.owner(authProviderId);
-    const where = { AND: [visibleConnections(owner.id), boundary, view === 'friends' ? { status: 'ACCEPTED' as const } : { status: 'PENDING' as const, ...(view === 'incoming' ? { toUserId: owner.id } : { fromUserId: owner.id }) }] };
+    // Search only the peer, not the owner. Escape literal username underscores
+    // before PostgreSQL LIKE matching, and filter before applying the page cap.
+    const peerName = { username: { contains: username?.replaceAll('_', '\\_') } };
+    const nameFilter: Prisma.FriendRequestWhereInput = username ? { OR: [
+      { fromUserId: owner.id, toUser: peerName }, { toUserId: owner.id, fromUser: peerName },
+    ] } : {};
+    const where = { AND: [visibleConnections(owner.id), boundary, nameFilter, view === 'friends' ? { status: 'ACCEPTED' as const } : { status: 'PENDING' as const, ...(view === 'incoming' ? { toUserId: owner.id } : { fromUserId: owner.id }) }] };
     const rows = await this.prisma.friendRequest.findMany({ where, select: connectionSelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 25 });
     const page = rows.slice(0, 24);
     return { items: page.map(r => connection(r, owner.id)), nextCursor: rows.length > 24 ? nextCursor(page[page.length - 1]!) : null };

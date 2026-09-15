@@ -74,7 +74,9 @@ try {
  await page.goto(pathToFileURL(resolve(output,'index.html')).href);
  async function home(){await page.getByText('Welcome home, alice.',{exact:true}).waitFor();if(!await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches))await page.getByRole('button',{name:'Skip to my palace',exact:true}).click();}
  const draft=()=>page.evaluate(()=>{const id=localStorage.getItem('lantern-letter-choice-v1-owner-alice');return JSON.parse(localStorage.getItem(!id||id==='original'?'lantern-draft-v1-owner-alice':'lantern-letter-v1-owner-alice--'+id));});
- if (guidanceReview) {
+ if (process.argv.includes('--friend-gates')) {
+   const {checkFriendGates}=await import('./check-friend-gates-ui.mjs');await checkFriendGates({page,output,errors,requests,backend});
+ } else if (guidanceReview) {
    const {checkGuidance}=await import('./check-guidance-ui.mjs');await checkGuidance({page,output,errors,requests,backend});
  } else if (fastChatReview) {
    const {checkFastChat}=await import('./check-fast-chat-ui.mjs');await checkFastChat({page,backend,output,errors,requests});

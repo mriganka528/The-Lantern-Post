@@ -14,6 +14,10 @@ export class FriendListDto {
   @ApiPropertyOptional({ enum: ['friends', 'incoming', 'outgoing'], default: 'friends' })
   @IsOptional() @IsIn(['friends', 'incoming', 'outgoing']) view: FriendsView = 'friends';
 
+  @ApiPropertyOptional({ minLength: 1, maxLength: 24, description: 'Match part of the other participant\'s username in your own guestbook.' })
+  @Transform(({ value }: TransformFnParams) => typeof value === 'string' ? value.trim().replace(/^@/, '').toLowerCase() : value)
+  @IsOptional() @IsString() @Length(1, 24) @Matches(/^[a-z0-9_]+$/) username?: string;
+
   @ApiPropertyOptional({ maxLength: 256 })
   @IsOptional() @IsString() @Length(1, 256) @Matches(/^[A-Za-z0-9_-]+$/) cursor?: string;
 }

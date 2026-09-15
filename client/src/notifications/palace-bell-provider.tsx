@@ -59,7 +59,7 @@ function AccountBell({ ownerId, getToken, onOpen, chatPeerId, children }: Props)
       <Text style={s.body}>{copy.body}</Text><Text style={styles.date}>{new Date(event.createdAt).toLocaleString()}</Text><Text style={styles.action}>{copy.action} →</Text>
     </Pressable></SwipeNotice>; })}
     {saved.error && <Text role="alert" style={s.body}>Your notification choices could not be saved on this device. The notices have been kept; please try again.</Text>}
-    {events.length > 0 && <TextAction label="Mark all notifications as seen" disabled={!unseen && !saved.error} onPress={() => store.markSeen(events.map(event => event.id))} />}
+    {saved.error && events.length > 0 && <TextAction label="Retry saving notification state" onPress={() => store.markSeen(events.map(event => event.id))} />}
     <TextAction label="Close the bells" onPress={() => setOpen(false)} />
   </StoryDialog>}</BellContext.Provider>;
 }

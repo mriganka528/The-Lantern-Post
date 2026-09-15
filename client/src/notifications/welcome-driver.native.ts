@@ -3,6 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { ensureNotificationPresentation } from './notification-presentation.native';
 import { WelcomeNotification, WELCOME_NOTIFICATION_ID, welcomeNote } from './welcome-notification';
+import { dailyReminders } from './daily-reminder-driver.native';
 
 export const welcomeAvailable = () => ['android', 'ios'].includes(Platform.OS) && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 const marker = () => new File(Paths.document, 'lantern-welcome-v1.txt');
@@ -28,4 +29,10 @@ const welcome = new WelcomeNotification({
     await notifications.scheduleNotificationAsync({ identifier: WELCOME_NOTIFICATION_ID, content: { ...welcomeNote, sound: 'default' }, trigger: { type: notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, repeats: false, channelId: 'palace-welcome' } });
   },
 });
-export const ensureWelcome = (manual = false) => welcome.ensure(manual);
+export const ensureWelcome = async (manual = false) => {
+  const result = await welcome.ensure(manual);
+  // Reconcile after the first OS permission sheet finishes, even if Android's
+  // foreground event arrived before its permission result was committed.
+  if (result === 'complete') void dailyReminders.sync();
+  return result;
+};

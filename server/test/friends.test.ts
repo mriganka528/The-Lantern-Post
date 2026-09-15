@@ -94,6 +94,45 @@ test('an invitation is persistent and owner scoped; duplicate retries enqueue ju
   assert.deepEqual(await (await request('/friends/summary')).json(), { friends: 0, incoming: 0, outgoing: 1 });
   assert.equal((await (await list('carol', 'incoming')).json() as FriendsPage).items.length, 0);
 });
+
+test('friend filtering searches the whole circle before pagination and preserves literal underscores', async () => {
+  for (let i = 0; i < 27; i++) {
+    const peer = context.fixture.user(`guest_${String(i).padStart(2, '0')}`); context.fixture.state.users.push(peer);
+    context.fixture.state.requests.push({ id: `filter-${i}`, fromUserId: i % 2 ? peer.id : 'owner-alice', toUserId: i % 2 ? 'owner-alice' : peer.id, status: 'ACCEPTED', createdAt: new Date(1700000000000 + i), respondedAt: new Date() });
+  }
+  const find = async (name: string, cursor = '') => {
+    const response = await request(`/friends?username=${encodeURIComponent(name)}${cursor ? `&cursor=${cursor}` : ''}`);
+    assert.equal(response.status, 200); return response.json() as Promise<FriendsPage>;
+  };
+  const first = await find(' @GuEsT_ '); assert.equal(first.items.length, 24); assert.ok(first.nextCursor);
+  const second = await find('guest_', first.nextCursor!); assert.equal(second.items.length, 3); assert.equal(second.nextCursor, null);
+  assert.equal(new Set([...first.items, ...second.items].map(item => item.id)).size, 27);
+  assert.deepEqual((await find('st_00')).items.map(item => item.person.username), ['guest_00'], 'finds a partial name outside the first unfiltered page');
+  const lookalike = context.fixture.user('guestx00'); context.fixture.state.users.push(lookalike);
+  context.fixture.state.requests.push({ id: 'filter-lookalike', fromUserId: 'owner-alice', toUserId: lookalike.id, status: 'ACCEPTED', createdAt: new Date(), respondedAt: new Date() });
+  assert.deepEqual((await find('st_00')).items.map(item => item.person.username), ['guest_00']);
+  assert.equal((await find('alice')).items.length, 0, 'the owner name must not match every peer');
+  assert.equal((await (await request('/friends?username=guest', 'bob')).json() as FriendsPage).items.length, 0);
+});
+
+test('friend filtering retains authentication, active-account, block and accepted-friend checks', async () => {
+  const invitation = await (await send()).json() as FriendConnection; await reply(invitation.id);
+  await send('carol');
+  const find = async (name: string) => (await (await request(`/friends?username=${name}`)).json() as FriendsPage).items;
+  assert.equal((await request('/friends?username=b', '')).status, 401);
+  for (const name of ['%', 'bo/b', 'a'.repeat(25), '']) assert.equal((await request(`/friends?username=${encodeURIComponent(name)}`)).status, 400);
+  assert.equal((await request('/friends?username=b&ownerId=owner-bob')).status, 400);
+  assert.equal((await find('carol')).length, 0, 'pending invitations stay outside the friends tab');
+  assert.deepEqual((await find('b')).map(item => item.person.username), ['bob']);
+  const serialized = JSON.stringify(await find('b'));
+  for (const privateField of ['authProviderId', 'privateField', 'blockedUsers', 'secret']) assert.ok(!serialized.includes(privateField));
+  for (const block of [{ blockerId: 'owner-alice', blockedId: 'owner-bob' }, { blockerId: 'owner-bob', blockedId: 'owner-alice' }]) {
+    context.fixture.state.blocks = [block]; assert.equal((await find('b')).length, 0);
+  }
+  context.fixture.state.blocks = [];
+  context.fixture.state.users.find(user => user.id === 'owner-bob')!.accountState = 'CLOSED';
+  assert.equal((await find('b')).length, 0);
+});
 test('crossed requests converge on one pending invitation without silently accepting it', async () => {
   const rows = await Promise.all([send(), send('alice', 'bob')]); const data = await Promise.all(rows.map(r => r.json() as Promise<FriendConnection>));
   assert.equal(data[0]!.id, data[1]!.id); assert.equal(data[0]!.status, 'PENDING'); assert.equal(data[1]!.status, 'PENDING');

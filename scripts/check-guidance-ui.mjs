@@ -7,8 +7,20 @@ export async function checkGuidance({ page, output, errors, requests, backend })
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByText('Welcome home, alice.', { exact: true }).waitFor();
   assert.equal(await page.getByTestId('palace-guidance').count(), 0, 'tour waits for the palace entrance');
+  await page.evaluate(() => {
+    window.__phase10.guidanceTiming = {};
+    document.addEventListener('click', () => { window.__phase10.guidanceTiming.clicked = performance.now(); }, { once: true, capture: true });
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('[data-testid="palace-guidance"]')) {
+        window.__phase10.guidanceTiming.shown = performance.now(); observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
   await button('Skip to my palace').click();
   await page.getByTestId('palace-guidance').waitFor();
+  const startupMs = await page.evaluate(() => window.__phase10.guidanceTiming.shown - window.__phase10.guidanceTiming.clicked);
+  assert.ok(startupMs < 400, `guidance starts promptly after arrival (${Math.round(startupMs)} ms)`);
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); });
   await page.getByTestId('palace-guidance').waitFor({ state: 'detached' });
   await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
