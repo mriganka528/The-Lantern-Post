@@ -6,7 +6,7 @@ export async function checkPhase11({ page, backend, output, errors, requests, up
   const button = name => page.getByRole('button', { name, exact: true });
   const draft = () => page.evaluate(() => { const id = localStorage.getItem('lantern-letter-choice-v1-owner-alice'); return JSON.parse(localStorage.getItem(!id || id === 'original' ? 'lantern-draft-v1-owner-alice' : 'lantern-letter-v1-owner-alice--' + id)); });
   async function home() { await page.getByText('Welcome home, alice.', { exact: true }).waitFor(); if (!await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)) await button('Skip to my palace').click(); }
-  await home(); await button('Companions').click(); await page.getByRole('radio', { name: /^Lune,/ }).click(); await button('Begin with Lune').click(); await home();
+  await home(); await button('Companions').click(); await page.getByRole('radio', { name: /^Lune,/ }).click(); await button('Go with Lune').click(); await home();
   assert.equal(await page.getByTestId('flying-dove-0').count(), 0); await page.getByTestId('river-current').waitFor(); assert.equal(await page.getByTestId('palace-angel-0').count(), 1);
   const river = await page.getByTestId('river-current').evaluate(e => getComputedStyle(e).transform); await page.waitForTimeout(350); assert.notEqual(await page.getByTestId('river-current').evaluate(e => getComputedStyle(e).transform), river);
   for (const c of characters) { const art = await readFile(resolve(root, `client/assets/storybook/palace-${c.key}.svg`), 'utf8'); assert.ok(!art.includes('M184 126q12-10')); }

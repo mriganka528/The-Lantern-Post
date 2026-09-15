@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropsWithChildren, RefObject } from 'react';
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { TourGuideProvider, TourGuideOverlay, useTourGuide, useTourScroll } from '@wrack/react-native-tour-guide';
 import type { TourButtonProps, TourProgressProps, TourStep } from '@wrack/react-native-tour-guide';
@@ -39,6 +39,11 @@ function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ e
   const start=useCallback(()=>{if(enabled)setRequested(true);},[enabled]);
   const retryPreference=useCallback(()=>setPreferenceError(!preference.retry()),[]);
   const finish=useCallback((completed:boolean)=>{const saved=preference.mark(completed?'complete':'skipped');if(mounted.current){setPreferenceError(!saved);setRequested(false);}if(canRestore.current)scrollRef.current?.scrollTo({y:returnScroll.current,animated:false});},[]);
+  useEffect(()=>{
+    if(Platform.OS!=='android'||!isActive||isPaused||!enabled||!foreground||anotherModal)return;
+    const listener=BackHandler.addEventListener('hardwareBackPress',()=>{skipTour();return true;});
+    return()=>listener.remove();
+  },[isActive,isPaused,enabled,foreground,anotherModal,skipTour]);
   useEffect(()=>{if(!isActive)return;if(!enabled)skipTour();else if(!foreground||anotherModal){if(!isPaused)pauseTour();}else if(isPaused)resumeTour();},[enabled,foreground,anotherModal,isActive,isPaused,skipTour,pauseTour,resumeTour]);
   useEffect(()=>{if(enabled)return;const timer=setTimeout(()=>setRequested(false),0);return()=>clearTimeout(timer);},[enabled]);
   useEffect(()=>{
@@ -56,7 +61,11 @@ function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ e
       startTour(steps,{
         tourId:'palace-guidance-v1',scrollRef,getCurrentScrollOffset:()=>offset.current,insets,
         tooltipWidth:280,autoPositionTooltip:true,followTarget:false,waitForInteractions:false,
-        overlayMode:'modal',motion:reduced?'none':'fade',animationDuration:reduced?0:180,
+        // Android edge-to-edge hosts already include the status bar in their
+        // window coordinates. The SDK's modal mode adds that inset again.
+        // Inline mode measures its own origin, so target and overlay share a
+        // coordinate space on both edge-to-edge and inset Android windows.
+        overlayMode:Platform.OS==='android'?'inline':'modal',motion:reduced?'none':'fade',animationDuration:reduced?0:180,
         nextButtonText:'Next',prevButtonText:'Back',skipButtonText:'Skip',doneButtonText:'Finish',
         components:{NextButton,PrevButton,SkipButton,StepCounter},onTourEnd:finish,
         tooltipStyles:{backgroundColor:'#F8F4EA',borderRadius:12,titleColor:'#403C32',descriptionColor:'#726B5D',titleStyle:{fontFamily:serif,fontSize:21,fontWeight:'400',lineHeight:27},descriptionStyle:{fontSize:12,lineHeight:20},containerStyle:{borderWidth:1,borderColor:'#B99B61'},primaryButtonColor:'#465448',skipButtonColor:'#877044'},
@@ -68,5 +77,10 @@ function GuidanceCoordinator({ children, enabled = true }: PropsWithChildren<{ e
   },[enabled,foreground,ready,anotherModal,isActive,requested,targets,startTour,finish,reduced,insets]);
   const visible=isActive&&!isPaused&&enabled&&foreground&&!anotherModal;
   const context=useMemo(()=>({active:visible,scrollRef,onScroll,onMomentumScrollEnd,register,setReady,start,preferenceError,retryPreference}),[visible,onScroll,onMomentumScrollEnd,register,start,preferenceError,retryPreference]);
-  return <GuidanceContext.Provider value={context}>{children}<TourGuideOverlay key={`${width}:${height}`} />{visible&&<TourModalLease />}</GuidanceContext.Provider>;
+  const inlineVisible=Platform.OS==='android'&&visible;
+  return <GuidanceContext.Provider value={context}><View testID="palace-guidance-viewport" style={{flex:1}}>
+    <View style={{flex:1}} importantForAccessibility={inlineVisible?'no-hide-descendants':'auto'} accessibilityElementsHidden={inlineVisible}>{children}</View>
+    <View testID="palace-guidance-overlay" style={[StyleSheet.absoluteFill,{pointerEvents:visible?'box-none':'none'}]} accessibilityViewIsModal={inlineVisible}><TourGuideOverlay key={`${width}:${height}`} /></View>
+    {visible&&<TourModalLease />}
+  </View></GuidanceContext.Provider>;
 }

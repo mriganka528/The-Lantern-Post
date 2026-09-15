@@ -41,9 +41,9 @@ export default function HomeScreen() {
   </AuthPage>;
   if (!palace.data.character) return <Redirect href="/choose-character" />;
   return <PalaceGuidanceProvider key={ownerId} enabled={focused}><View style={{ flex: 1 }}>
-    <PalaceHome key={palace.data.character.id} character={palace.data.character} username={profile.data.user.username} onCompanions={() => router.push('/choose-character')} onAccount={() => setAccount(true)} onWrite={() => router.push('/writing-desk')} onInfinity={() => router.push('/infinity')}
+    <PalaceHome key={palace.data.character.id} active={focused} character={palace.data.character} username={profile.data.user.username} onCompanions={() => router.push('/choose-character')} onAccount={() => setAccount(true)} onWrite={() => router.push('/writing-desk')} onInfinity={() => router.push('/infinity')}
       onFriends={() => router.push('/friends')} friends={friends.data?.pages.flatMap(page => page.items)} friendSummary={friendSummary.data} friendsUnavailable={friends.isError || friendSummary.isError}
       onInbox={() => router.push('/inbox')} unreadLetters={letterbox.data?.unread} onWriteToFriend={person => router.push({ pathname: '/writing-desk', params: { recipient: person.id } })} onChatToFriend={person => router.push({ pathname: '/chat', params: { friend: person.id } })} />
-    {account && <AccountMenu ownerId={ownerId} username={profile.data.user.username} getToken={getToken} onClose={() => setAccount(false)} onPrivacy={() => { setAccount(false); router.push('/privacy'); }} signOut={<SignOutButton />} />}
+    {focused && account && <AccountMenu ownerId={ownerId} username={profile.data.user.username} getToken={getToken} onClose={() => setAccount(false)} onPrivacy={() => { setAccount(false); router.push('/privacy'); }} signOut={<SignOutButton />} />}
   </View></PalaceGuidanceProvider>;
 }

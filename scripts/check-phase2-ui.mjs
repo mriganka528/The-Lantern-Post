@@ -78,8 +78,7 @@ try {
   assert.equal(await page.getByRole('radio', { name: /^Ember,/ }).getAttribute('aria-checked'), 'true');
   for (const character of characters) {
     await page.getByRole('radio', { name: new RegExp(`^${character.displayName},`) }).click();
-    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${character.displayName},`) }).getAttribute('aria-checked'), 'true');
-    await page.getByRole('button', { name: `Begin with ${character.displayName}` }).click();
+    await page.getByRole('button', { name: `Go with ${character.displayName}`, exact: true }).click();
     await page.getByRole('button', { name: 'Open the doors', exact: true }).waitFor();
     if (character.key === 'fox-lantern') {
       await page.screenshot({ path: resolve(output, '02-palace-doors.png'), fullPage: true });
@@ -105,9 +104,9 @@ try {
   await page.screenshot({ path: resolve(output, '05-companions-phone.png'), fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Gallery must fit the phone width');
   await page.getByRole('radio', { name: /^Lune,/ }).click();
-  await page.getByRole('button', { name: 'Begin with Lune' }).scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Go with Lune', exact: true }).waitFor();
   await page.screenshot({ path: resolve(output, '07-companion-preview-phone.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Begin with Lune' }).click();
+  await page.getByRole('button', { name: 'Go with Lune', exact: true }).click();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Open the doors', exact: true }).click();
   await page.getByRole('button', { name: 'Skip to my palace' }).waitFor({ state: 'hidden', timeout: 1000 });

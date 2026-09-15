@@ -14,7 +14,7 @@ import { RoyalNavButton } from './royal-navigation';
 import { GuidanceTarget, useGuidance } from '../guidance/guidance-context';
 import { GuidanceSection } from '../guidance/guidance-section';
 
-export function PalaceHome({ character, username, onCompanions, onAccount, onWrite, onFriends, friends = [], friendSummary, friendsUnavailable = false, onInbox, unreadLetters, onWriteToFriend, onChatToFriend, onInfinity }: { character: CharacterDetails; username: string; onCompanions: () => void; onAccount: () => void; onWrite: () => void; onFriends?: () => void; friends?: FriendConnection[]; friendSummary?: FriendSummary; friendsUnavailable?: boolean; onInbox?: () => void; unreadLetters?: number; onWriteToFriend?: (person: FriendPerson) => void; onChatToFriend?: (person: FriendPerson) => void; onInfinity?: () => void }) {
+export function PalaceHome({ character, username, active = true, onCompanions, onAccount, onWrite, onFriends, friends = [], friendSummary, friendsUnavailable = false, onInbox, unreadLetters, onWriteToFriend, onChatToFriend, onInfinity }: { character: CharacterDetails; username: string; active?: boolean; onCompanions: () => void; onAccount: () => void; onWrite: () => void; onFriends?: () => void; friends?: FriendConnection[]; friendSummary?: FriendSummary; friendsUnavailable?: boolean; onInbox?: () => void; unreadLetters?: number; onWriteToFriend?: (person: FriendPerson) => void; onChatToFriend?: (person: FriendPerson) => void; onInfinity?: () => void }) {
   const { width } = useWindowDimensions();
   const [arrival, setArrival] = useState<'gate' | 'walking' | 'settled'>('gate');
   const finishWalk = useCallback(() => setArrival('settled'), []);
@@ -23,14 +23,14 @@ export function PalaceHome({ character, username, onCompanions, onAccount, onWri
   const [visit, setVisit] = useState<FriendPerson | null>(null);
   const reduced = useReducedMotion();
   const guide = useGuidance(); const guideReady = guide?.setReady;
-  useEffect(() => { guideReady?.(arrival === 'settled'); return () => guideReady?.(false); }, [arrival, guideReady]);
+  useEffect(() => { guideReady?.(active && arrival === 'settled'); return () => guideReady?.(false); }, [active, arrival, guideReady]);
   const wide = width >= 850;
   const small = width < 600;
   return <>
     <StoryShell chapter="YOUR LITTLE WORLD" scrollRef={guide?.scrollRef} onScroll={guide?.onScroll} onMomentumScrollEnd={guide?.onMomentumScrollEnd} scrollEnabled={!guide?.active} actions={<><GuidanceTarget id="companions"><TextAction label="Companions" onPress={onCompanions} /></GuidanceTarget><GuidanceTarget id="account"><TextAction label="Account" onPress={onAccount} /></GuidanceTarget></>}>
       <StoryHeading eyebrow="A LITTLE CORNER OF FOREVER" title={`Welcome home, ${username}.`} subtitle="Leave the noise of the world at the gate. There is room for all of you here." />
       <View style={styles.sceneHeader}><View style={styles.location}><StoryIcon kind="gate" size={19} /><Text style={styles.locationText}>{character.palace.name}</Text></View><View style={styles.homeTag}><View style={styles.homeDot} /><Text style={styles.homeTagText}>YOUR SANCTUARY</Text></View></View>
-      <PalaceScene characterKey={character.key} paused={paused || arrival === 'gate'} arrival={arrival === 'gate' ? 'waiting' : arrival} onArrival={finishWalk} />
+      <PalaceScene characterKey={character.key} paused={paused || !active || arrival === 'gate'} arrival={!active || arrival === 'gate' ? 'waiting' : arrival} onArrival={finishWalk} />
       <View style={styles.sceneCaption}><Text style={styles.caption} accessibilityLiveRegion="polite">{arrival === 'walking' ? `${character.displayName} is following the river path home…` : character.palace.description}</Text><View style={styles.sceneActions}>
         {arrival === 'walking' ? <TextAction label="Skip the walk" onPress={finishWalk} /> : <TextAction label="Open the doors again" onPress={() => setArrival('gate')} />}
         {!reduced && <Pressable accessibilityRole="switch" accessibilityLabel="Ambient palace animation" accessibilityState={{ checked: enabled }} aria-checked={enabled} onPress={() => setEnabled(!enabled)} style={styles.motion}><View style={[styles.motionDot, { backgroundColor: paused ? line : gold }]} /><Text style={styles.motionLabel}>{paused ? 'Motion off' : 'Motion on'}</Text></Pressable>}
@@ -73,8 +73,8 @@ export function PalaceHome({ character, username, onCompanions, onAccount, onWri
       </View>
       <GuidanceSection />
     </StoryShell>
-    {arrival === 'gate' && <PalaceEntrance character={character} onComplete={finishGate} />}
-    {visit && <FriendGateVisit person={visit} onClose={() => setVisit(null)} onWrite={onWriteToFriend ? () => { const person = visit; setVisit(null); onWriteToFriend(person); } : undefined} onChat={onChatToFriend ? () => { const person = visit; setVisit(null); onChatToFriend(person); } : undefined} />}
+    {active && arrival === 'gate' && <PalaceEntrance character={character} onComplete={finishGate} />}
+    {active && visit && <FriendGateVisit person={visit} onClose={() => setVisit(null)} onWrite={onWriteToFriend ? () => { const person = visit; setVisit(null); onWriteToFriend(person); } : undefined} onChat={onChatToFriend ? () => { const person = visit; setVisit(null); onChatToFriend(person); } : undefined} />}
   </>;
 }
 

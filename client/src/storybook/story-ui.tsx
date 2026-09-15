@@ -49,7 +49,7 @@ export function StoryHeading({ eyebrow, title, subtitle }: { eyebrow: string; ti
   </View>;
 }
 
-export function StoryDialog({ title, children, onClose }: PropsWithChildren<{ title: string; onClose: () => void }>) {
+export function StoryDialog({ title, children, onClose, footer }: PropsWithChildren<{ title: string; onClose: () => void; footer?: ReactNode }>) {
   useBlockingPalaceModal();
   const { width } = useWindowDimensions();
   const reduced = useReducedMotion();
@@ -59,6 +59,7 @@ export function StoryDialog({ title, children, onClose }: PropsWithChildren<{ ti
       <View style={[s.dialog, width < 600 && { padding: 16, gap: 14, maxHeight: '94%' }]} accessibilityViewIsModal>
         <View style={s.dialogHeader}><Text accessibilityRole="header" style={s.dialogTitle}>{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close dialog" onPress={onClose} style={s.close}><StoryIcon kind="close" /></Pressable></View>
         <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 20 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>{children}</ScrollView>
+        {Boolean(footer) && <View style={{ flexShrink: 0, gap: 10 }}>{footer}</View>}
       </View>
     </View>
   </Modal>;

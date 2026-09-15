@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import type { CharacterDetails } from '@lantern-post/shared-types';
 import { CharacterArt } from './character-art';
 import { Flourish, StoryIcon } from './ornaments';
 import { PalaceScene } from './palace-scene';
-import { StoryButton, StoryHeading, StoryShell, TextAction, s } from './story-ui';
+import { StoryButton, StoryDialog, StoryHeading, StoryShell, TextAction, s } from './story-ui';
 import { gold, ink, line, mutedInk, palettes, paper, serif } from './theme';
 
 interface GalleryProps {
@@ -22,6 +22,9 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
   const { width } = useWindowDimensions();
   const wide = width >= 980;
   const [selectedId, setSelectedId] = useState(currentId ?? characters[0]?.id);
+  const [confirming, setConfirming] = useState<CharacterDetails | null>(null);
+  const committing = useRef(false);
+  useEffect(() => { if (!busy) committing.current = false; }, [busy]);
   const selected = characters.find(character => character.id === selectedId) ?? characters[0];
   if (!selected) return null;
   const portraitSize = wide ? 121 : width < 420 ? 110 : 140;
@@ -36,10 +39,17 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
     else if (![' ', 'Enter'].includes(event.key)) return;
     event.preventDefault();
     setSelectedId(characters[next]!.id);
+    if ([' ', 'Enter'].includes(event.key)) setConfirming(characters[next]!);
     event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
   }
 
-  return <StoryShell chapter="THE FIRST PAGE OF YOUR STORY" actions={<>{onBack && <TextAction label="My palace" onPress={onBack} disabled={busy} />}<TextAction label="Account" onPress={onAccount} disabled={busy} /></>}>
+  function confirm() {
+    if (!confirming || !characters.some(character => character.id === confirming.id) || busy || committing.current) return;
+    committing.current = true;
+    onChoose(confirming);
+  }
+
+  return <><StoryShell chapter="THE FIRST PAGE OF YOUR STORY" actions={<>{onBack && <TextAction label="My palace" onPress={onBack} disabled={busy} />}<TextAction label="Account" onPress={onAccount} disabled={busy} /></>}>
     <StoryHeading eyebrow="CHAPTER I · A KINDRED SPIRIT" title="Every story begins with a companion." subtitle="Kindred souls and extraordinary palaces. Choose the one that feels a little like you — every companion is included." />
     <View style={[styles.layout, wide && styles.wideLayout]}>
       <View style={[styles.gallerySide, wide && { flex: 1.45 }]}>
@@ -49,7 +59,7 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
             const chosen = character.id === selected.id;
             return <Pressable key={character.id} accessibilityRole="radio" accessibilityLabel={`${character.displayName}, ${character.title}. ${character.palace.name}`} accessibilityState={{ checked: chosen, disabled: busy }} aria-checked={chosen} aria-disabled={busy}
               {...(Platform.OS === 'web' ? { tabIndex: chosen ? 0 as const : -1 as const, onKeyDown: (event: KeyboardEvent<HTMLElement>) => keyboardSelect(event, index) } : {})}
-              disabled={busy} onPress={() => setSelectedId(character.id)} style={({ pressed }) => [styles.card, { width: width < 600 ? '48%' : '31.7%' }, chosen && styles.chosenCard, pressed && { opacity: .8 }]}>
+              disabled={busy} onPress={() => { setSelectedId(character.id); setConfirming(character); }} style={({ pressed }) => [styles.card, { width: width < 600 ? '48%' : '31.7%' }, chosen && styles.chosenCard, pressed && { opacity: .8 }]}>
               <View style={styles.cardTop}><Text style={styles.number}>{['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][index] ?? index + 1}</Text><View style={[styles.radio, chosen && { backgroundColor: gold, borderColor: gold }]}>{chosen && <Text style={styles.tick}>✓</Text>}</View></View>
               <View style={[styles.portrait, { backgroundColor: palettes[character.key].mist, width: portraitSize + 10, height: portraitSize * 1.15 + 10 }]}>
                 <View style={styles.portraitRing} /><CharacterArt characterKey={character.key} size={portraitSize} />
@@ -74,17 +84,29 @@ export function CharacterGallery({ characters, currentId, busy, error, onChoose,
           <PalaceScene characterKey={selected.key} compact />
           <Text style={styles.palaceName}>{selected.palace.name}</Text>
           <Text style={[s.body, { textAlign: 'center', fontSize: 12, marginBottom: 22 }]}>{selected.palace.description}</Text>
-          {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          <StoryButton label={busy ? 'Preparing your palace…' : currentId === selected.id ? 'Return to my palace' : `Begin with ${selected.displayName}`} onPress={() => onChoose(selected)} busy={busy} />
+          {Boolean(error) && !confirming && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+          <StoryButton label={busy ? 'Preparing your palace…' : currentId === selected.id ? 'Return to my palace' : `Begin with ${selected.displayName}`} onPress={() => setConfirming(selected)} busy={busy} />
           <Text style={styles.smallPrint}>A companion. A palace. A place to begin.</Text>
         </View>
       </View>
     </View>
-  </StoryShell>;
+  </StoryShell>
+  {confirming && <StoryDialog title={`Go with ${confirming.displayName}?`} onClose={() => { if (!busy) setConfirming(null); }} footer={<>
+    <StoryButton label={busy ? 'Preparing your palace…' : `Go with ${confirming.displayName}`} onPress={confirm} busy={busy} disabled={!characters.some(character => character.id === confirming.id)} />
+    <StoryButton label="Select another companion" secondary onPress={() => setConfirming(null)} disabled={busy} />
+  </>}>
+    <View style={styles.choiceSummary}><CharacterArt characterKey={confirming.key} size={64} /><View style={{ flex: 1, gap: 5 }}><Text style={styles.choicePalace}>{confirming.palace.name}</Text><Text style={s.body}>{confirming.title}</Text></View></View>
+    <Text style={s.body}>{confirming.description} You can choose another companion later.</Text>
+    {!characters.some(character => character.id === confirming.id) && <Text role="alert" style={styles.error}>This companion is no longer available. Please select another companion.</Text>}
+    {Boolean(error) && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+  </StoryDialog>}
+  </>;
 }
 
 const styles = StyleSheet.create({
   layout: { gap: 30 },
+  choiceSummary: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  choicePalace: { fontFamily: serif, fontSize: 21, lineHeight: 27, color: ink },
   wideLayout: { flexDirection: 'row', gap: 36, alignItems: 'flex-start' },
   gallerySide: { minWidth: 0 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginBottom: 18, flexWrap: 'wrap' },
