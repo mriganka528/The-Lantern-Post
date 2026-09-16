@@ -5,7 +5,9 @@ import { voiceTime } from './voice-contract';
 import { pauseVoicePlayback, registerVoicePlayer } from './playback-registry';
 import { serif } from '../storybook/theme';
 import { playbackHasEnded, startVoicePlayback } from './playback-operation';
-export function VoicePlayer({ uri, durationMs, label = 'Voice letter' }: { uri: string; durationMs: number; label?: string }) {
+import { PlayFromStartButton, RemoveAudioButton } from './voice-playback-controls';
+import type { VoicePlayerProps } from './voice-playback-controls';
+export function VoicePlayer({ uri, durationMs, label = 'Voice letter', onRemove, removeDisabled }: VoicePlayerProps) {
   const player = useAudioPlayer({ uri }, { updateInterval: 250 }); const state = useAudioPlayerStatus(player); const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false); const generation = useRef(0), running = useRef(false), mounted = useRef(true);
   useEffect(() => {
@@ -32,9 +34,9 @@ export function VoicePlayer({ uri, durationMs, label = 'Voice letter' }: { uri: 
     finally { clearTimeout(timer); if (current()) { running.current = false; setBusy(false); } }
   };
   return <View style={styles.player}><Text style={styles.label}>{label}</Text><Text style={styles.time}>{voiceTime((state.currentTime ?? 0) * 1000)} / {voiceTime(durationMs)}</Text>
-    <View style={styles.buttons}><Pressable accessibilityRole="button" accessibilityLabel="Restart voice letter" accessibilityState={{ disabled: busy }} onPress={() => { void play(true); }} disabled={busy} style={[styles.secondary, busy && { opacity: .5 }]}><Text style={styles.label}>↶ Restart</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={state.playing ? 'Pause voice letter' : 'Play voice letter'} onPress={() => { void play(); }} disabled={busy || (!state.isLoaded && !state.playing)} style={styles.play}><Text style={styles.playText}>{state.playing ? 'Ⅱ' : '▶'}</Text></Pressable></View>
+    <View style={styles.buttons}><PlayFromStartButton onPress={() => { void play(true); }} disabled={busy} /><Pressable accessibilityRole="button" accessibilityLabel={state.playing ? 'Pause voice letter' : 'Play voice letter'} onPress={() => { void play(); }} disabled={busy || (!state.isLoaded && !state.playing)} style={styles.play}><Text style={styles.playText}>{state.playing ? 'Ⅱ' : '▶'}</Text></Pressable>{onRemove && <RemoveAudioButton onPress={onRemove} disabled={removeDisabled || busy} />}</View>
     {busy ? <Text style={styles.time}>Preparing playback…</Text> : !state.isLoaded && !state.error && <Text style={styles.time}>{state.isBuffering ? 'Buffering your recording…' : 'Opening your recording…'}</Text>}
     {Boolean(error || state.error) && <Text role="alert" style={styles.error}>{error ?? 'This recording is unavailable. Reopen the letter to refresh it.'}</Text>}
   </View>;
 }
-const styles = StyleSheet.create({ player: { gap: 12, alignItems: 'center', padding: 18, width: '100%', borderColor: '#B89A65', borderWidth: 1, backgroundColor: '#E8D7B2', borderRadius: 5 }, label: { fontFamily: serif, fontSize: 19, color: '#59442D' }, time: { fontSize: 12, color: '#796443' }, buttons: { flexDirection: 'row', gap: 14 }, play: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#6B543B', alignItems: 'center', justifyContent: 'center' }, playText: { color: '#F8EDCE', fontSize: 20 }, secondary: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, error: { fontSize: 12, color: '#8C4334', lineHeight: 18 } });
+const styles = StyleSheet.create({ player: { gap: 12, alignItems: 'center', padding: 18, width: '100%', borderColor: '#B89A65', borderWidth: 1, backgroundColor: '#E8D7B2', borderRadius: 5 }, label: { fontFamily: serif, fontSize: 19, color: '#59442D' }, time: { fontSize: 12, color: '#796443' }, buttons: { flexDirection: 'row', gap: 8, maxWidth: '100%', alignItems: 'center', justifyContent: 'center' }, play: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#6B543B', alignItems: 'center', justifyContent: 'center' }, playText: { color: '#F8EDCE', fontSize: 20 }, error: { fontSize: 12, color: '#8C4334', lineHeight: 18 } });

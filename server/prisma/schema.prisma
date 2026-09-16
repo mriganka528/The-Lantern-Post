@@ -334,6 +334,8 @@ model PalaceEvent {
   peerId String?
   itemId String?
   createdAt DateTime @default(now())
+  seenAt DateTime?
+  dismissedAt DateTime?
   @@unique([ownerId,sequence])
   @@index([createdAt])
 }

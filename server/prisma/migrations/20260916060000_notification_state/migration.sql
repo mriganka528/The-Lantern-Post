@@ -1,0 +1,2 @@
+ALTER TABLE "PalaceEvent" ADD COLUMN "seenAt" TIMESTAMP(3),
+ADD COLUMN "dismissedAt" TIMESTAMP(3);

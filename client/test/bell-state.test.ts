@@ -27,7 +27,7 @@ test('dismissed notices survive old-state migration, concurrent reads and reload
   const state=new BellSeenStore('alice',storage).getSnapshot();
   assert.deepEqual(state.seen,['old','letter','message']);assert.deepEqual(state.dismissed,['letter']);
   assert.deepEqual(new BellSeenStore('bob',storage).getSnapshot().dismissed,[]);
-  assert.equal(JSON.parse(rows.get(bellKey('alice'))!).version,2);
+  assert.equal(JSON.parse(rows.get(bellKey('alice'))!).version,3);
 });
 
 test('failed dismissal keeps a notice visible and swipe detection leaves vertical scrolling alone', async () => {

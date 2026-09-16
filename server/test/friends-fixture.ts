@@ -93,6 +93,7 @@ export function friendsFixture() {
       if (['chatThreads', 'chatMessages', 'chatReceipts', 'chatReports'].includes(table) && state[table].some(r => r.id === data.id)) throw conflict();
       if (table === 'chatMessages' && state.chatMessages.some(r => r.threadId === data.threadId && r.sequence === data.sequence)) throw conflict();
       const row: Row = { id: `cfixture${String(++state.next).padStart(6, '0')}`, createdAt: new Date(),
+        ...(table === 'events' ? { seenAt: null, dismissedAt: null } : {}),
         ...(table === 'requests' ? { status: 'PENDING', respondedAt: null } : {}), ...(table === 'jobs' ? { availableAt: new Date(), claimedUntil: null, attempts: 0, completedAt: null, requestId: null, letterId: null, chatMessageId:null } : {}),
         ...(table === 'letters' ? { type: 'TEXT', status: 'SENDING', recipientId: null, textContent: null, voiceCaption: null, audioUrl: null, audioDurationMs: null, voiceAssetId: null, stationeryJson: null, deliveredAt: null, readAt: null, senderDeletedAt:null, recipientDeletedAt:null, moderationPassed: null, moderationSkipped:false } : {}),
         ...(table === 'deletions' ? { state:'PENDING', requestedAt:new Date(), availableAt:new Date(), claimedUntil:null, completedAt:null, attempts:0, errorCode:null } : {}), ...(table === 'driveConnections' ? {activeUntil:null} : {}), ...(table === 'driveLinks' ? {status:'PENDING',encryptedCleanupToken:null,exchangingUntil:null} : {}), ...(table === 'chatMessages' ? {erasedAt:null,moderationSkipped:false} : {}),

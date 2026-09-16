@@ -16,6 +16,7 @@ import type { PalaceDestination } from '../realtime/palace-live-contract';
 import { BellContext } from './bell-context';
 import { BellSeenStore, isBellArrival } from './bell-state';
 import { SwipeNotice } from './swipe-notice';
+import { BellSync } from './bell-sync';
 
 type Props = PropsWithChildren<{ ownerId: string; getToken: GetSessionToken; onOpen: (target: PalaceDestination) => void; chatPeerId?: string }>;
 export function PalaceBellProvider(props: Props) {
@@ -25,10 +26,19 @@ function AccountBell({ ownerId, getToken, onOpen, chatPeerId, children }: Props)
   const [open, setOpen] = useState(false); const active = useAppActive(); const connected = usePalaceConnection(ownerId);
   const cache = useQueryClient(); const key = useMemo(() => ['palace-notices', ownerId], [ownerId]);
   const store = useMemo(() => new BellSeenStore(ownerId, draftStorage), [ownerId]);
+  const sync = useMemo(() => new BellSync(store, async (batch, signal) => {
+    const result = await apiRequest<{ saved: boolean }>('/notifications/state', getToken, { method: 'POST', body: batch, signal });
+    if (result.saved !== true) throw Error('Notification state not acknowledged');
+    if (!signal.aborted) void cache.invalidateQueries({ queryKey: key });
+  }), [store, getToken, cache, key]);
+  const syncing = useSyncExternalStore(sync.subscribe, sync.getSnapshot, sync.getSnapshot);
   const saved = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const currentPeer = useRef(chatPeerId); useEffect(() => { currentPeer.current = chatPeerId; }, [chatPeerId]);
   useEffect(() => store.watch(), [store]);
+  useEffect(() => { if (active) sync.start(); return () => sync.stop(); }, [active, sync]);
+  useEffect(() => { if (connected) sync.retry(); }, [connected, sync]);
   const query = useQuery({ queryKey: key, queryFn: async ({ signal }) => readPalaceEvents(await apiRequest('/notifications/inbox', getToken, { signal })), enabled: active, staleTime: 10_000, refetchInterval: active && !connected ? 30_000 : false });
+  useEffect(() => { store.mergeRemoteSeen((query.data?.events ?? []).filter(event => event.seen).map(event => event.id)); }, [query.data, store]);
   const events = useMemo(() => (query.data?.events ?? []).filter(event => isBellArrival(event) && !saved.dismissed.includes(event.id)).slice().reverse(), [query.data, saved.dismissed]);
   const seen = useMemo(() => new Set(saved.seen), [saved.seen]); const unseen = events.filter(event => event.alert && !seen.has(event.id)).length;
   useEffect(() => {
@@ -50,16 +60,17 @@ function AccountBell({ ownerId, getToken, onOpen, chatPeerId, children }: Props)
   const value = useMemo(() => ({ unseen, openBell, markItemSeen }), [unseen, openBell, markItemSeen]);
   return <BellContext.Provider value={value}>{children}{open && active && <StoryDialog title="The palace bells" onClose={() => setOpen(false)}>
     <View style={styles.intro}><StoryIcon kind="bell" size={34} /><Text style={styles.caption}>Little arrivals, kept for you.</Text><Flourish width={110} /></View>
-    <Text style={s.body}>Recent arrivals from the past seven days. Swipe a notice left or right to dismiss it. Your letters and conversations stay where they are.</Text>
+    <Text style={s.body}>Open a notice to visit its letter or conversation and clear it here. You can also swipe it away. Your letters and messages stay safely where they are.</Text>
     {query.isPending && <ActivityIndicator accessibilityLabel="Loading notifications" color="#9A7944" />}
     {query.isError && <View style={styles.empty}><Text role="alert" style={s.body}>The bells could not be checked. Your last arrivals stay here until the post reconnects.</Text><TextAction label="Try notifications again" onPress={() => { void query.refetch(); }} /></View>}
     {!query.isPending && !query.isError && events.length === 0 && <View testID="palace-notifications-empty" style={styles.empty}><Text style={styles.title}>The bells are quiet.</Text><Text style={s.body}>New letters and messages will find a home here.</Text></View>}
-    {events.map(event => { const copy = arrivalCopy(event); const isNew = event.alert && !seen.has(event.id); return <SwipeNotice key={event.id} label={copy.title} onDismiss={() => store.dismiss(event.id)}><Pressable testID={`bell-notice-${event.id}`} accessibilityRole="button" accessibilityLabel={`${copy.title}${isNew ? ', new' : ''}. ${copy.action}`} onPress={() => { store.markSeen([event.id]); setOpen(false); onOpen(eventDestination(event)); }} style={({ pressed }) => [styles.notice, isNew && styles.newNotice, pressed && { backgroundColor: '#E8D8B5' }]}>
+    {events.map(event => { const copy = arrivalCopy(event); const isNew = event.alert && !seen.has(event.id); return <SwipeNotice key={event.id} label={copy.title} onDismiss={() => store.dismiss(event.id)}><Pressable testID={`bell-notice-${event.id}`} accessibilityRole="button" accessibilityLabel={`${copy.title}${isNew ? ', new' : ''}. ${copy.action}`} onPress={() => { onOpen(eventDestination(event)); store.dismiss(event.id); setOpen(false); }} style={({ pressed }) => [styles.notice, isNew && styles.newNotice, pressed && { backgroundColor: '#E8D8B5' }]}>
       <View style={styles.noticeHeading}><StoryIcon kind={event.kind === 'LETTER_RECEIVED' ? 'letter' : event.kind === 'CHAT_RECEIVED' ? 'moon' : 'gate'} size={22} /><Text style={styles.title}>{copy.title}</Text>{isNew && <Text style={styles.newLabel}>NEW</Text>}</View>
       <Text style={s.body}>{copy.body}</Text><Text style={styles.date}>{new Date(event.createdAt).toLocaleString()}</Text><Text style={styles.action}>{copy.action} →</Text>
     </Pressable></SwipeNotice>; })}
     {saved.error && <Text role="alert" style={s.body}>Your notification choices could not be saved on this device. The notices have been kept; please try again.</Text>}
     {saved.error && events.length > 0 && <TextAction label="Retry saving notification state" onPress={() => store.markSeen(events.map(event => event.id))} />}
+    {syncing.error && <View style={{ gap: 8 }}><Text role="alert" style={s.body}>Your choices are saved on this device and waiting to sync to your account. Connect before reinstalling to keep them.</Text><TextAction label="Sync notification choices" onPress={sync.retry} /></View>}
     <TextAction label="Close the bells" onPress={() => setOpen(false)} />
   </StoryDialog>}</BellContext.Provider>;
 }

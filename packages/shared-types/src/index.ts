@@ -191,8 +191,9 @@ export type ChatRejection = 'CANCELLED' | 'FRIEND_UNAVAILABLE' | 'CONTENT_NOT_AL
 export interface ChatReceipt { requestId: string; peerId: string; outcome: 'DELIVERED' | 'REJECTED'; reason: ChatRejection | null; messageId: string | null; sequence: number | null; completedAt: string; }
 export interface ChatCapabilities { textAvailable: boolean; }
 export type PalaceEventKind = 'FRIENDS_CHANGED'|'FRIEND_REQUEST'|'FRIEND_ACCEPTED'|'LETTERBOX_CHANGED'|'LETTER_REMOVED'|'LETTER_RECEIVED'|'CHAT_CHANGED'|'CHAT_RECEIVED'|'GATES_CHANGED';
-export interface PalaceLiveEvent {id:string;sequence:number;kind:PalaceEventKind;peerId:string|null;itemId:string|null;createdAt:string;alert:boolean;}
+export interface PalaceLiveEvent {id:string;sequence:number;kind:PalaceEventKind;peerId:string|null;itemId:string|null;createdAt:string;alert:boolean;seen?:boolean;}
 export interface PalaceEventPage {events:PalaceLiveEvent[];cursor:number;reset:boolean;}
+export interface NotificationStateUpdate { seenIds: string[]; dismissedIds: string[]; }
 export type LetterBox = 'received' | 'sent';
 export interface LetterEnvelope {
   id: string;

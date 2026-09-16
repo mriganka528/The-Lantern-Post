@@ -31,7 +31,7 @@ export class PalaceEvents implements OnModuleInit,OnModuleDestroy {
   async inbox(ownerId: string): Promise<PalaceEventPage> {
     const owner = await this.prisma.user.findFirst({ where: { id: ownerId, accountState: 'ACTIVE' }, select: { realtimeSequence: true } });
     if (!owner) throw new GoneException();
-    const rows = await this.prisma.palaceEvent.findMany({ where: { ownerId, kind: { in: ['LETTER_RECEIVED', 'CHAT_RECEIVED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED'] }, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } }, orderBy: { sequence: 'desc' }, take: 50 });
+    const rows = await this.prisma.palaceEvent.findMany({ where: { ownerId, dismissedAt: null, kind: { in: ['LETTER_RECEIVED', 'CHAT_RECEIVED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED'] }, createdAt: { gte: new Date(Date.now() - 7 * 86400000) } }, orderBy: { sequence: 'desc' }, take: 50 });
     const ids = (...kinds: string[]) => rows.filter(row => kinds.includes(row.kind)).map(row => row.itemId).filter((id): id is string => Boolean(id));
     const letterIds = ids('LETTER_RECEIVED'), messageIds = ids('CHAT_RECEIVED'), invitationIds = ids('FRIEND_REQUEST', 'FRIEND_ACCEPTED');
     // Batch current-access checks. History is available without push credentials,
@@ -43,7 +43,7 @@ export class PalaceEvents implements OnModuleInit,OnModuleDestroy {
     ]);
     const visible = new Set([...letters, ...messages, ...invitations].map(row => row.id));
     const unreadLetters = new Set(letters.filter(row => !row.readAt).map(row => row.id));
-    const events = rows.filter(row => row.itemId && visible.has(row.itemId)).reverse().map(row => ({ id: row.id, sequence: row.sequence, kind: row.kind as PalaceEventKind, peerId: row.peerId, itemId: row.itemId, createdAt: row.createdAt.toISOString(), alert: row.kind !== 'LETTER_RECEIVED' || unreadLetters.has(row.itemId!) }));
+    const events = rows.filter(row => row.itemId && visible.has(row.itemId)).reverse().map(row => ({ id: row.id, sequence: row.sequence, kind: row.kind as PalaceEventKind, peerId: row.peerId, itemId: row.itemId, createdAt: row.createdAt.toISOString(), seen: Boolean(row.seenAt), alert: !row.seenAt && (row.kind !== 'LETTER_RECEIVED' || unreadLetters.has(row.itemId!)) }));
     return { events, cursor: Math.max(owner.realtimeSequence, ...rows.map(row => row.sequence)), reset: false };
   }
   async read(ownerId:string,after:number|null):Promise<PalaceEventPage>{
@@ -51,7 +51,7 @@ export class PalaceEvents implements OnModuleInit,OnModuleDestroy {
     if(after===null||after>owner.realtimeSequence)return {events:[],cursor:owner.realtimeSequence,reset:true};
     if(after===owner.realtimeSequence)return {events:[],cursor:after,reset:false};
     const rows=await this.prisma.palaceEvent.findMany({where:{ownerId,sequence:{gt:after}},orderBy:{sequence:'asc'},take:50});const events:PalaceLiveEvent[]=[];
-    for(const row of rows){let alert=false;const recent=Date.now()-row.createdAt.getTime()<300000;let kind=row.kind as PalaceEventKind;
+    for(const row of rows){let alert=false;const recent=!row.seenAt&&!row.dismissedAt&&Date.now()-row.createdAt.getTime()<300000;let kind=row.kind as PalaceEventKind;
       if(recent&&kind==='LETTER_RECEIVED')alert=Boolean(await this.prisma.letter.findFirst({where:{AND:[privateLetters(ownerId),{id:row.itemId!,recipientId:ownerId,readAt:null}]},select:{id:true}}));
       if(recent&&kind==='CHAT_RECEIVED')alert=Boolean(await this.prisma.chatMessage.findFirst({where:{id:row.itemId!,erasedAt:null,recipientDeletedAt:null,AND:[releasedContent],senderId:row.peerId!,sender:correspondent(ownerId),thread:{OR:[{firstUserId:ownerId},{secondUserId:ownerId}]}},select:{id:true}}));
       if(recent&&(kind==='FRIEND_REQUEST'||kind==='FRIEND_ACCEPTED'))alert=Boolean(await this.prisma.friendRequest.findFirst({where:{id:row.itemId!,status:kind==='FRIEND_REQUEST'?'PENDING':'ACCEPTED',...(kind==='FRIEND_REQUEST'?{toUserId:ownerId}:{fromUserId:ownerId}),fromUser:notBlocked(ownerId),toUser:notBlocked(ownerId)},select:{id:true}}));

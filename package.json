@@ -20,6 +20,7 @@
     "check:correspondence-ui": "node scripts/check-mobile-correspondence-ui.mjs",
     "check:session-ui": "node scripts/check-phase10-ui.mjs --session",
     "check:bell-ui": "node scripts/check-phase10-ui.mjs --bell",
+    "check:bell-state-ui": "node scripts/check-mobile-correspondence-ui.mjs --bell",
     "check:chat-speed-ui": "node scripts/check-phase10-ui.mjs --chat-speed",
     "check:mobile-build": "node scripts/check-mobile-build.mjs",
     "check:native-google": "node scripts/check-native-google.mjs",

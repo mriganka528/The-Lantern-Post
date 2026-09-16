@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { PushRegistration } from '@lantern-post/shared-types';
+import type { PushRegistration, NotificationStateUpdate } from '@lantern-post/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import type { Environment } from '../config/environment';
 import { notBlocked } from '../friends/friend-contract';
@@ -21,6 +21,26 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService<Environment, true>,private events:PalaceEvents) {}
   get enabled() { return this.config.get('EXPO_PUSH_ENABLED'); }
   async inbox(subject: string) { const owner = await this.owner(subject); return this.events.inbox(owner.id); }
+  async updateState(subject: string, input: NotificationStateUpdate) {
+    const owner = await this.owner(subject);
+    const seenIds = [...new Set([...input.seenIds, ...input.dismissedIds])];
+    const now = new Date();
+    const changed = await this.prisma.$transaction(async tx => {
+      await activeAccount(tx, owner.id);
+      const where = { ownerId: owner.id, kind: { in: ['LETTER_RECEIVED', 'CHAT_RECEIVED', 'FRIEND_REQUEST', 'FRIEND_ACCEPTED'] }, createdAt: { gte: new Date(now.getTime() - 7 * 86400000) } };
+      // Monotonic and owner-scoped: a stale device cannot undo a dismissal.
+      // Unknown, expired and foreign IDs get the same content-free response.
+      const seen = await tx.palaceEvent.updateMany({ where: { ...where, id: { in: seenIds }, seenAt: null }, data: { seenAt: now } });
+      const dismissed = await tx.palaceEvent.updateMany({ where: { ...where, id: { in: input.dismissedIds }, dismissedAt: null }, data: { dismissedAt: now } });
+      if (seen.count + dismissed.count) {
+        // Existing clients already understand this quiet inbox invalidation.
+        await this.events.append(tx, [{ ownerId: owner.id, kind: 'LETTERBOX_CHANGED' }]);
+      }
+      return seen.count + dismissed.count > 0;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (changed) this.events.notify([owner.id]);
+    return { saved: true as const };
+  }
   onModuleInit() {
     if (this.enabled) { this.stopWake=this.events.onCommit(()=>this.wake());this.timer = setInterval(() => { void this.dispatch().catch(() => {}); }, 3000); this.timer.unref(); }
   }
@@ -58,6 +78,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         if (!claimed.count) continue;
         const finish = () => this.prisma.friendNotification.updateMany({ where: { id: job.id, claimedUntil: claim }, data: { completedAt: new Date(), claimedUntil: null } });
         try {
+          const notice = await this.prisma.palaceEvent.findFirst({ where: { id: job.id, ownerId: job.userId }, select: { seenAt: true, dismissedAt: true } });
+          if (notice?.seenAt || notice?.dismissedAt) { await finish(); continue; }
           // Skip stale/declined invitations and relationships blocked since enqueue.
           const letterDelivery = job.kind === 'LETTER_DELIVERED';
           const chatDelivery=job.kind==='CHAT_MESSAGE';
